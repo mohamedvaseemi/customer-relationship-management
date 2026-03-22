@@ -9,7 +9,8 @@ export async function GET(req) {
     const filters = {
         status: searchParams.get('status'),
         priority: searchParams.get('priority'),
-        source: searchParams.get('source')
+        source: searchParams.get('source'),
+        search: searchParams.get('search')
     };
 
     try {

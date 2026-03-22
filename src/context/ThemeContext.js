@@ -5,15 +5,18 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-    const [theme, setTheme] = useState('light');
+    const [theme, setTheme] = useState(() => {
+        // Fallback for SSR
+        if (typeof window === 'undefined') return 'light';
+        return localStorage.getItem('theme') || 'light';
+    });
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        setTheme(savedTheme);
-        document.documentElement.setAttribute('data-theme', savedTheme);
         setMounted(true);
-    }, []);
+        // Ensure the class name is set on the document element once mounted
+        document.documentElement.setAttribute('data-theme', theme);
+    }, [theme]);
 
     const updateTheme = (newTheme) => {
         setTheme(newTheme);

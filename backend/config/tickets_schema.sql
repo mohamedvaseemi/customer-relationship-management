@@ -13,5 +13,6 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_tickets_updated_at ON tickets;
 CREATE TRIGGER update_tickets_updated_at BEFORE UPDATE ON tickets
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

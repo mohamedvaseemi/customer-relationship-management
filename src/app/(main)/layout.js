@@ -29,11 +29,19 @@ export default function MainLayout({ children }) {
 
     const pathname = usePathname();
     const router = useRouter();
-    const { user, logout } = useAuth();
+    const { user, logout, loading: authLoading } = useAuth();
 
     useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
-    }, [theme]);
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+
+    useEffect(() => {
+        if (mounted) {
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+    }, [theme, mounted]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -112,6 +120,14 @@ export default function MainLayout({ children }) {
         logout();
         router.push('/login');
     };
+
+    if (authLoading || (!user && mounted)) {
+        return (
+            <div className="flex items-center justify-center min-vh-100">
+                <div className="loader"></div>
+            </div>
+        );
+    }
 
     useEffect(() => {
         const handleClickOutside = (e) => {

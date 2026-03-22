@@ -31,6 +31,13 @@ export const getAllLeads = async (filters) => {
         paramCount++;
     }
 
+    if (filters.search) {
+        queryString += ` AND (l.title ILIKE $${paramCount} OR c.email ILIKE $${paramCount + 1} OR c.company ILIKE $${paramCount + 2})`;
+        const s = `%${filters.search}%`;
+        params.push(s, s, s);
+        paramCount += 3;
+    }
+
     queryString += ' ORDER BY l.created_at DESC';
 
     const leads = await query(queryString, params);

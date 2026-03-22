@@ -2,10 +2,11 @@ import { getDealById, updateDeal, deleteDeal } from '@/lib/controllers/dealContr
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET(req, { params }) {
+    const { id } = await params;
     const user = getAuthUser(req);
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     try {
-        const result = await getDealById(params.id);
+        const result = await getDealById(id);
         return Response.json(result);
     } catch (error) {
         return Response.json({ error: error.message }, { status: 404 });
@@ -13,11 +14,12 @@ export async function GET(req, { params }) {
 }
 
 export async function PUT(req, { params }) {
+    const { id } = await params;
     const user = getAuthUser(req);
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     try {
         const body = await req.json();
-        const result = await updateDeal(params.id, body);
+        const result = await updateDeal(id, body);
         return Response.json(result);
     } catch (error) {
         return Response.json({ error: error.message }, { status: 400 });
@@ -25,10 +27,11 @@ export async function PUT(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
+    const { id } = await params;
     const user = getAuthUser(req);
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     try {
-        const result = await deleteDeal(params.id);
+        const result = await deleteDeal(id);
         return Response.json(result);
     } catch (error) {
         return Response.json({ error: error.message }, { status: 400 });

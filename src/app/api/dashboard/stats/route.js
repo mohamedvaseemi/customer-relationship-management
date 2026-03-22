@@ -59,8 +59,8 @@ export async function GET(req) {
             stats: {
                 tickets: { open_tickets: parseInt(openTickets.rows[0].count) || 0 }
             },
-            openTasks: openTasks.rows.length > 0 ? openTasks.rows : [
-                { id: 'mock1', subject: 'No pending tasks. Start prospecting!', due_date: 'N/A', priority: 'medium' }
+            upcomingMeetings: openTasks.rows.length > 0 ? openTasks.rows : [
+                { id: 'mock1', subject: 'No pending tasks. Start prospecting!', due_date: null, priority: 'medium' }
             ],
             trends: {
                 leads: leadTrends.rows.length > 0 ? leadTrends.rows : defaultLeads,

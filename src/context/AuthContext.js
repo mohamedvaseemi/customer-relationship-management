@@ -5,22 +5,20 @@ import { createContext, useState, useContext, useEffect, useCallback } from 'rea
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState(null);
+    const [token, setToken] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        return localStorage.getItem('token');
+    });
+    const [user, setUser] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        const u = localStorage.getItem('user');
+        try { return u ? JSON.parse(u) : null; } catch { return null; }
+    });
+    const [loading, setLoading] = useState(false); // No longer loading initially as we read from storage
 
     useEffect(() => {
-        const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        if (storedToken && storedUser) {
-            try {
-                setToken(storedToken);
-                setUser(JSON.parse(storedUser));
-            } catch {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-            }
-        }
+        // Still verify the token exists, if we want to do a background refresh we can here
+        // But for now, just mark loading as false
         setLoading(false);
     }, []);
 
