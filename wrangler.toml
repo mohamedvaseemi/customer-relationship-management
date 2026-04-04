@@ -1,0 +1,2 @@
+name = "customer-relationship-management"
+pages_build_output_dir = "dist"
