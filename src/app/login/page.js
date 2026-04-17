@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiGrid } from 'react-icons/fi';
 import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import Loader from '@/components/Loader';
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
@@ -47,6 +48,7 @@ export default function LoginPage() {
 
     return (
         <div className="auth-container">
+            <Loader isLoading={loading} />
             <div className="auth-split-layout">
                 {/* Branding Panel */}
                 <motion.div

@@ -5,22 +5,31 @@ import { createContext, useState, useContext, useEffect, useCallback } from 'rea
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(() => {
-        if (typeof window === 'undefined') return null;
-        return localStorage.getItem('token');
-    });
-    const [user, setUser] = useState(() => {
-        if (typeof window === 'undefined') return null;
-        const u = localStorage.getItem('user');
-        try { return u ? JSON.parse(u) : null; } catch { return null; }
-    });
-    const [loading, setLoading] = useState(false); // No longer loading initially as we read from storage
+    const [token, setToken] = useState(null);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Still verify the token exists, if we want to do a background refresh we can here
-        // But for now, just mark loading as false
+        // Hydrate from localStorage on mount (client-side only)
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+
+        if (storedToken) setToken(storedToken);
+        if (storedUser) {
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch (err) {
+                console.error('Failed to parse stored user:', err);
+            }
+        }
         setLoading(false);
+
+        // Fail-safe: Ensure loading is cleared even if something blocks
+        const timer = setTimeout(() => setLoading(false), 2000);
+        return () => clearTimeout(timer);
     }, []);
+
+
 
     const login = async (credentials) => {
         const response = await fetch('/api/auth/login', {

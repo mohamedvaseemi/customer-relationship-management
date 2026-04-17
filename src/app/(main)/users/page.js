@@ -24,7 +24,7 @@ export default function UsersPage() {
 
     const [formData, setFormData] = useState({
         name: '', email: '', role: 'user', password: '',
-        phone: '', job_title: '', department: ''
+        phone: '', job_title: '', department: '', subscription_tier: 'free'
     });
 
     const loadUsers = useCallback(async () => {
@@ -105,14 +105,33 @@ export default function UsersPage() {
             password: '',
             phone: user.phone || '',
             job_title: user.job_title || '',
-            department: user.department || ''
+            department: user.department || '',
+            subscription_tier: user.subscription_tier || 'free'
         });
         setShowModal(true);
+    };
+    
+    const handleQuickUpgrade = async (user) => {
+        try {
+            const response = await fetch(`/api/users/${user.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ subscription_tier: 'pro' })
+            });
+            if (response.ok) {
+                toast.success(`${user.name} promoted to Professional Tier for free!`);
+                loadUsers();
+            } else {
+                toast.error('Failed to upgrade user');
+            }
+        } catch {
+            toast.error('Network error');
+        }
     };
 
     const resetForm = () => {
         setSelectedUser(null);
-        setFormData({ name: '', email: '', role: 'user', password: '', phone: '', job_title: '', department: '' });
+        setFormData({ name: '', email: '', role: 'user', password: '', phone: '', job_title: '', department: '', subscription_tier: 'free' });
     };
 
     const filteredUsers = users.filter(u =>
@@ -176,6 +195,7 @@ export default function UsersPage() {
                                 <th>Contact</th>
                                 <th>Work Info</th>
                                 <th>Role</th>
+                                <th>Tier</th>
                                 <th>Joined</th>
                                 <th className="text-right">Actions</th>
                             </tr>
@@ -223,6 +243,17 @@ export default function UsersPage() {
                                                 {user.role}
                                             </div>
                                         </td>
+                                        <td>
+                                            <div className="status-badge-alt" style={{
+                                                backgroundColor: user.subscription_tier === 'enterprise' ? 'rgba(245, 158, 11, 0.12)' : user.subscription_tier === 'pro' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                                color: user.subscription_tier === 'enterprise' ? '#f59e0b' : user.subscription_tier === 'pro' ? '#10b981' : '#64748b',
+                                                textTransform: 'capitalize',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 800
+                                            }}>
+                                                {user.subscription_tier || 'Free'}
+                                            </div>
+                                        </td>
                                         <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                                             {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                                         </td>
@@ -231,6 +262,16 @@ export default function UsersPage() {
                                                 <button className="action-btn" onClick={() => handleEdit(user)} title="Edit user">
                                                     <FiEdit2 />
                                                 </button>
+                                                {user.id !== currentUser.id && user.subscription_tier !== 'pro' && (
+                                                    <button 
+                                                        className="action-btn" 
+                                                        onClick={() => handleQuickUpgrade(user)} 
+                                                        style={{ color: 'var(--success)' }}
+                                                        title="Give Pro for Free"
+                                                    >
+                                                        <FiZap />
+                                                    </button>
+                                                )}
                                                 {user.id !== currentUser.id && (
                                                     <button
                                                         className="action-btn"
@@ -306,6 +347,14 @@ export default function UsersPage() {
                                             <select className="select-alt" value={formData.department} onChange={e => setFormData({ ...formData, department: e.target.value })}>
                                                 <option value="">Select department</option>
                                                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="input-field">
+                                            <label>Subscription Tier</label>
+                                            <select className="select-alt" value={formData.subscription_tier} onChange={e => setFormData({ ...formData, subscription_tier: e.target.value })}>
+                                                <option value="free">Free (Starter)</option>
+                                                <option value="pro">Pro (Professional)</option>
+                                                <option value="enterprise">Enterprise</option>
                                             </select>
                                         </div>
                                         <div className="input-field" style={{ gridColumn: '1 / -1' }}>

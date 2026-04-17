@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 
-const USER_SAFE_FIELDS = 'id, name, email, role, avatar, phone, job_title, department, bio, location, timezone, language, avatar_color, notification_prefs, created_at, updated_at, last_active_at';
+const USER_SAFE_FIELDS = 'id, name, email, role, avatar, phone, job_title, department, bio, location, timezone, language, avatar_color, notification_prefs, subscription_tier, created_at, updated_at, last_active_at';
 
 export const createUser = async (data) => {
     const { name, email, password, role, phone, job_title, department } = data;
@@ -40,7 +40,7 @@ export const getUserById = async (id) => {
 };
 
 export const updateUser = async (id, data) => {
-    const { name, email, role, password, phone, job_title, department, bio, location, timezone, language, avatar_color, notification_prefs } = data;
+    const { name, email, role, password, phone, job_title, department, bio, location, timezone, language, avatar_color, notification_prefs, subscription_tier } = data;
     
     let updateFields = [];
     let updateParams = [];
@@ -64,6 +64,7 @@ export const updateUser = async (id, data) => {
     addField('timezone', timezone);
     addField('language', language);
     addField('avatar_color', avatar_color);
+    addField('subscription_tier', subscription_tier);
     if (notification_prefs !== undefined) {
         updateFields.push(`notification_prefs = $${idx++}`);
         updateParams.push(JSON.stringify(notification_prefs));

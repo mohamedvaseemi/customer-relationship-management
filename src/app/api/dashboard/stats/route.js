@@ -1,46 +1,64 @@
 import { query } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic'; // Prevent static caching for authenticated data
+
 export async function GET(req) {
-    const authHeader = req.headers.get('authorization');
     const user = getAuthUser(req);
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Helper to prevent a single hanging query from blocking the entire Dashboard
+    const queryWithTimeout = async (sql, params = [], fallback = { rows: [] }) => {
+        try {
+            return await Promise.race([
+                query(sql, params),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Query Timeout')), 3500))
+            ]);
+        } catch (err) {
+            console.warn(`⚠️ Dashboard Query Slow: ${sql.substring(0, 30)}... | Error: ${err.message}`);
+            return fallback;
+        }
+    };
+
     try {
-        // Fetch real stats from DB
-        const leadsCount = await query('SELECT COUNT(*) FROM leads');
-        const dealsCount = await query("SELECT COUNT(*) FROM deals WHERE stage = 'closed_won'");
-        const totalValue = await query("SELECT SUM(amount) FROM deals WHERE stage = 'closed_won'");
-        const openTickets = await query("SELECT COUNT(*) FROM tickets WHERE status != 'closed'");
+        // Run all DB queries in PARALLEL with individual timeouts
+        const [
+            leadsCount,
+            dealsCount,
+            totalValue,
+            openTickets,
+            openTasks,
+            leadTrends,
+            revenueTrends
+        ] = await Promise.all([
+            queryWithTimeout('SELECT COUNT(*) FROM leads', [], { rows: [{ count: 0 }] }),
+            queryWithTimeout("SELECT COUNT(*) FROM deals WHERE stage = 'closed_won'", [], { rows: [{ count: 0 }] }),
+            queryWithTimeout("SELECT SUM(amount) FROM deals WHERE stage = 'closed_won'", [], { rows: [{ sum: 0 }] }),
+            queryWithTimeout("SELECT COUNT(*) FROM tickets WHERE status != 'closed'", [], { rows: [{ count: 0 }] }),
+            queryWithTimeout(`
+                SELECT id, subject, due_date, priority, status 
+                FROM activities 
+                WHERE status != 'completed' 
+                ORDER BY due_date ASC 
+                LIMIT 5
+            `),
+            queryWithTimeout(`
+                SELECT TO_CHAR(created_at, 'Mon') as month, COUNT(*) as count 
+                FROM leads 
+                WHERE created_at > NOW() - INTERVAL '6 months'
+                GROUP BY month, date_trunc('month', created_at)
+                ORDER BY date_trunc('month', created_at)
+            `),
+            queryWithTimeout(`
+                SELECT TO_CHAR(created_at, 'Mon') as month, SUM(amount) as total 
+                FROM deals 
+                WHERE stage = 'closed_won' AND created_at > NOW() - INTERVAL '6 months'
+                GROUP BY month, date_trunc('month', created_at)
+                ORDER BY date_trunc('month', created_at)
+            `)
+        ]);
 
-        // Real Tasks
-        const openTasks = await query(`
-            SELECT id, subject, due_date, priority, status 
-            FROM activities 
-            WHERE status != 'completed' 
-            ORDER BY due_date ASC 
-            LIMIT 5
-        `);
 
-        // Real Trends for Leads (last 6 months)
-        const leadTrends = await query(`
-            SELECT TO_CHAR(created_at, 'Mon') as month, COUNT(*) as count 
-            FROM leads 
-            WHERE created_at > NOW() - INTERVAL '6 months'
-            GROUP BY month, date_trunc('month', created_at)
-            ORDER BY date_trunc('month', created_at)
-        `);
-
-        // Real Trends for Revenue (last 6 months)
-        const revenueTrends = await query(`
-            SELECT TO_CHAR(created_at, 'Mon') as month, SUM(amount) as total 
-            FROM deals 
-            WHERE stage = 'closed_won' AND created_at > NOW() - INTERVAL '6 months'
-            GROUP BY month, date_trunc('month', created_at)
-            ORDER BY date_trunc('month', created_at)
-        `);
-
-        // Fallback for trends if empty (for better UX when fresh)
         const defaultLeads = [
             { month: 'Jan', count: 0 }, { month: 'Feb', count: 0 }, { month: 'Mar', count: 0 }
         ];
@@ -66,9 +84,15 @@ export async function GET(req) {
                 leads: leadTrends.rows.length > 0 ? leadTrends.rows : defaultLeads,
                 revenue: revenueTrends.rows.length > 0 ? revenueTrends.rows.map(r => ({ ...r, total: parseFloat(r.total) })) : defaultRev
             }
+        }, {
+            headers: {
+                // Cache for 60s on CDN edges, stale-while-revalidate for 30s
+                'Cache-Control': 'private, max-age=60, stale-while-revalidate=30'
+            }
         });
     } catch (error) {
         console.error('API Error:', error);
         return Response.json({ error: error.message }, { status: 500 });
     }
 }
+

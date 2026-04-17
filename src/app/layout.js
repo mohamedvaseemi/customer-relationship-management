@@ -1,9 +1,27 @@
+import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/components/Toast";
+import { LoadingProvider } from "@/context/LoadingContext";
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  variable: '--font-heading',
+  display: 'swap',
+  weight: ['300', '400', '500', '600', '700', '800'],
+});
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+  style: ['normal', 'italic'],
+  weight: ['300', '400', '500', '600', '700'],
+});
 
 export const metadata = {
+  metadataBase: new URL('https://moderncrm.com'),
   title: {
     default: "ModernCRM | Sales Intelligence Simplified",
     template: "%s | ModernCRM"
@@ -11,7 +29,6 @@ export const metadata = {
   description: "High-performance sales intelligence platform for modern teams. Track leads, close deals, and automate workflows with AI-powered insights.",
   keywords: ["CRM", "Sales Intelligence", "Lead Management", "Pipeline Tracking", "Sales Automation"],
   authors: [{ name: "ModernCRM Team" }],
-  viewport: "width=device-width, initial-scale=1",
   robots: "index, follow",
   openGraph: {
     type: "website",
@@ -30,16 +47,24 @@ export const metadata = {
   }
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#6366f1",
+};
+
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="" suppressHydrationWarning>
+    <html lang="en" className={`${outfit.variable} ${jakarta.variable}`} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </AuthProvider>
+          <LoadingProvider>
+            <AuthProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </AuthProvider>
+          </LoadingProvider>
         </ThemeProvider>
       </body>
     </html>

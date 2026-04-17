@@ -16,8 +16,18 @@ const SETTINGS_GROUPS = [
         icon: FiGlobe,
         items: [
             { id: 'personal', label: 'Personal Settings', path: '/settings/personal' },
-            { id: 'users', label: 'Users & Control', path: '/users' }, // Point to existing user mgmt
+            { id: 'users', label: 'Users & Control', path: '/users' },
             { id: 'company', label: 'Company Details', path: '/settings/company' }
+        ]
+    },
+    {
+        id: 'billing',
+        title: 'Billing & Intelligence',
+        icon: FiZap,
+        items: [
+            { id: 'plans', label: 'Subscription Plans', path: '/pricing' },
+            { id: 'billing', label: 'Billing History', path: '/billing' },
+            { id: 'usage', label: 'Strategic Usage', path: '/dashboard' }
         ]
     },
     {

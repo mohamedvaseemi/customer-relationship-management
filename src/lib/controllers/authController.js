@@ -86,7 +86,8 @@ export const login = async (data) => {
             timezone: user.timezone,
             language: user.language,
             avatar_color: user.avatar_color || '#6366f1',
-            notification_prefs: user.notification_prefs
+            notification_prefs: user.notification_prefs,
+            subscription_tier: user.subscription_tier
         }
     };
 };
@@ -94,7 +95,7 @@ export const login = async (data) => {
 export const getCurrentUser = async (userId) => {
     const users = await query(
         `SELECT id, name, email, role, avatar, phone, job_title, department, bio, location, 
-                timezone, language, avatar_color, notification_prefs, created_at, last_active_at
+                timezone, language, avatar_color, notification_prefs, subscription_tier, created_at, last_active_at
          FROM users WHERE id = $1`,
         [userId]
     );

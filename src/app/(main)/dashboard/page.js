@@ -3,15 +3,23 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/context/AuthContext';
 import { FiUsers, FiTrendingUp, FiActivity, FiDollarSign, FiArrowUp, FiArrowDown, FiAward, FiAlertCircle, FiPlus, FiRefreshCcw } from 'react-icons/fi';
 import { motion } from 'framer-motion';
-import {
-    AreaChart, Area, BarChart, Bar,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend
-} from 'recharts';
+import Loader from '@/components/Loader';
 import './Dashboard.css';
+
+// Lazy-load heavy chart library — defers ~140KB from initial bundle
+const { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = {
+    AreaChart: dynamic(() => import('recharts').then(m => m.AreaChart), { ssr: false }),
+    Area: dynamic(() => import('recharts').then(m => m.Area), { ssr: false }),
+    XAxis: dynamic(() => import('recharts').then(m => m.XAxis), { ssr: false }),
+    YAxis: dynamic(() => import('recharts').then(m => m.YAxis), { ssr: false }),
+    CartesianGrid: dynamic(() => import('recharts').then(m => m.CartesianGrid), { ssr: false }),
+    Tooltip: dynamic(() => import('recharts').then(m => m.Tooltip), { ssr: false }),
+    ResponsiveContainer: dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false }),
+};
 
 export default function DashboardPage() {
     const { user, token, loading: authLoading } = useAuth();
@@ -33,11 +41,20 @@ export default function DashboardPage() {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            if (!response.ok) throw new Error('Failed to fetch stats');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error ${response.status}: Failed to fetch stats`);
+            }
             const data = await response.json();
             setStats(data);
         } catch (error) {
             console.error('Failed to load dashboard:', error);
+            if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                // Clear token and redirect if unauthorized
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                router.push('/login');
+            }
         } finally {
             setLoading(false);
         }
@@ -59,10 +76,26 @@ export default function DashboardPage() {
 
     const CHART_COLORS = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
 
-    if (authLoading || loading) {
+    if (authLoading) {
+        return <Loader isLoading={true} />;
+    }
+
+    // Skeleton UI for instant loading
+    if (loading && !stats) {
         return (
-            <div className="loading-container">
-                <div className="spinner"></div>
+            <div className="dashboard animate-pulse p-8">
+                <header className="dashboard-header-alt mb-8">
+                    <div style={{ height: '40px', width: '250px', background: 'var(--bg-tertiary)', borderRadius: '8px' }}></div>
+                </header>
+                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} style={{ height: '120px', background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-color)' }}></div>
+                    ))}
+                </div>
+                <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+                    <div style={{ height: '400px', background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-color)' }}></div>
+                    <div style={{ height: '400px', background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-color)' }}></div>
+                </div>
             </div>
         );
     }
@@ -240,6 +273,39 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 </div>
+                {user?.subscription_tier === 'free' && (
+                    <div className="dashboard-widget-glass fade-in-up mt-8">
+                        <div className="widget-header-premium">
+                            <h3>Usage Intelligence</h3>
+                            <Link href="/pricing" className="text-primary text-sm font-bold">Upgrade Now</Link>
+                        </div>
+                        <div className="widget-content-premium p-6">
+                            <div className="flex justify-between mb-2 text-sm">
+                                <span className="text-muted">Lead Capacity Utilization</span>
+                                <span className="font-bold">{stats?.leadsSummary?.stats?.total_leads || 0} / 15</span>
+                            </div>
+                            <div className="progress-bar-container" style={{ 
+                                height: '10px', 
+                                background: 'var(--bg-tertiary)', 
+                                borderRadius: '5px',
+                                overflow: 'hidden',
+                                marginBottom: '1rem'
+                            }}>
+                                <motion.div 
+                                    className="progress-bar-fill"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${Math.min(((stats?.leadsSummary?.stats?.total_leads || 0) / 15) * 100, 100)}%` }}
+                                    style={{ 
+                                        height: '100%', 
+                                        background: 'var(--primary-gradient)',
+                                        borderRadius: '5px'
+                                    }}
+                                />
+                            </div>
+                            <p className="text-xs text-muted">You are approaching your strategic limit. Upgrade to Professional for unlimited orchestration.</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

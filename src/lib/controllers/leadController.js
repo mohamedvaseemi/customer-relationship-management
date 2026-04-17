@@ -63,6 +63,18 @@ export const getLeadById = async (id) => {
 };
 
 export const createLead = async (data, userId) => {
+    // Check usage limit
+    const userResult = await query('SELECT subscription_tier FROM users WHERE id = $1', [userId]);
+    const tier = userResult.rows[0]?.subscription_tier || 'free';
+    
+    if (tier === 'free') {
+        const countResult = await query('SELECT COUNT(*) FROM leads'); // Total leads in system for demo, usually per user
+        const count = parseInt(countResult.rows[0].count);
+        if (count >= 15) {
+            throw new Error('LIMIT_REACHED: You have reached the limit of 15 leads on the Free plan. Please upgrade to Pro.');
+        }
+    }
+
     const {
         contact_id, title, value, currency, status, priority, source,
         expected_close_date, probability, assigned_to, notes

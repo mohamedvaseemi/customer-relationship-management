@@ -10,10 +10,12 @@ import {
     FiZap, FiHeadphones, FiMessageSquare
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import ThemeSelector from '@/components/ThemeSelector';
-import ChatWidget from '@/components/ChatWidget';
+
+const ThemeSelector = dynamic(() => import('@/components/ThemeSelector'), { ssr: false });
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 import './Layout.css';
 
 
@@ -56,6 +58,17 @@ export default function MainLayout({ children }) {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (e.target.closest('.dropdown-container')) return;
+            setNotificationsOpen(false);
+            setUserDropdownOpen(false);
+            setThemeOpen(false);
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
     const mockSearchResults = [
@@ -111,6 +124,7 @@ export default function MainLayout({ children }) {
             title: 'Administration',
             items: [
                 { path: '/users', icon: FiUsers, label: 'User Management' },
+                { path: '/pricing', icon: FiDollarSign, label: 'Plans & Billing' },
                 { path: '/settings', icon: FiSettings, label: 'System Settings' },
             ]
         });
@@ -129,19 +143,10 @@ export default function MainLayout({ children }) {
         );
     }
 
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (e.target.closest('.dropdown-container')) return;
-            setNotificationsOpen(false);
-            setUserDropdownOpen(false);
-            setThemeOpen(false);
-        };
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, []);
+
 
     return (
-        <div className={`layout ${theme}`}>
+        <div className={`layout ${mounted ? theme : 'light'}`}>
             {/* Command Palette Overlay */}
             <AnimatePresence>
                 {searchOpen && (
@@ -268,6 +273,8 @@ export default function MainLayout({ children }) {
                         <div
                             className="header-search"
                             onClick={() => setSearchOpen(true)}
+                            role="button"
+                            aria-label="Open Search (Command + K)"
                         >
                             <FiSearch className="search-icon" />
                             <span className="search-placeholder">Search anything...</span>
@@ -277,8 +284,8 @@ export default function MainLayout({ children }) {
 
                     <div className="header-right">
                         <div className="dropdown-container">
-                            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setThemeOpen(!themeOpen); }} title="Switch Theme">
-                                {theme?.includes('dark') || theme === 'midnight' ? <FiMoon size={20} /> : <FiSun size={20} />}
+                            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setThemeOpen(!themeOpen); }} aria-label="Change Theme" title="Switch Theme">
+                                {mounted && (theme?.includes('dark') || theme === 'midnight') ? <FiMoon size={20} /> : <FiSun size={20} />}
                             </button>
 
                             <AnimatePresence>
@@ -297,7 +304,7 @@ export default function MainLayout({ children }) {
                         </div>
 
                         <div className="dropdown-container">
-                            <button className="icon-btn relative" onClick={(e) => { e.stopPropagation(); setNotificationsOpen(!notificationsOpen); }}>
+                            <button className="icon-btn relative" onClick={(e) => { e.stopPropagation(); setNotificationsOpen(!notificationsOpen); }} aria-label="Notifications">
                                 <FiBell size={20} />
                                 <span className="notification-dot"></span>
                             </button>
@@ -340,11 +347,11 @@ export default function MainLayout({ children }) {
                         <div className="dropdown-container">
                             <div className="user-profile-trigger" onClick={(e) => { e.stopPropagation(); setUserDropdownOpen(!userDropdownOpen); }}>
                                 <div className="user-avatar gradient-primary">
-                                    {user?.name?.charAt(0).toUpperCase()}
+                                    {mounted && user?.name?.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="user-info-text hide-mobile">
-                                    <div className="user-name">{user?.name}</div>
-                                    <div className="user-role">{user?.role}</div>
+                                    <div className="user-name">{mounted && user?.name}</div>
+                                    <div className="user-role">{mounted && user?.role}</div>
                                 </div>
                             </div>
 

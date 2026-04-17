@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /login
+Allow: /pricing
+
+Disallow: /dashboard
+Disallow: /leads
+Disallow: /deals
+Disallow: /contacts
+Disallow: /accounts
+Disallow: /activities
+Disallow: /reports
+Disallow: /tickets
+Disallow: /profile
+Disallow: /settings
+Disallow: /users
+Disallow: /calls
+Disallow: /campaigns
+Disallow: /documents
+Disallow: /automation
+Disallow: /chat
+Disallow: /api/
+
+Sitemap: https://moderncrm.com/sitemap.xml
