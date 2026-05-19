@@ -1,13 +1,12 @@
-'use client';
-
-import { useState } from 'react';
+"use client";
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiMail, FiLock, FiUser, FiArrowRight, FiGrid } from 'react-icons/fi';
 import { useAuth } from '@/context/AuthContext';
+import { FiMail, FiLock, FiUser, FiArrowRight, FiGrid } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
-import Loader from '@/components/Loader';
+import '@/styles/Auth.css';
 
-export default function LoginPage() {
+export default function Login() {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         email: '',
@@ -16,8 +15,14 @@ export default function LoginPage() {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const { login, register, user } = useAuth();
     const router = useRouter();
-    const { login, register } = useAuth();
+
+    useEffect(() => {
+        if (user) {
+            router.push('/dashboard');
+        }
+    }, [user, router]);
 
     const handleChange = (e) => {
         setFormData({
@@ -36,11 +41,15 @@ export default function LoginPage() {
             if (isLogin) {
                 await login({ email: formData.email, password: formData.password });
             } else {
-                await register(formData);
+                await register({
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password
+                });
             }
             router.push('/dashboard');
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
         } finally {
             setLoading(false);
         }
@@ -48,7 +57,6 @@ export default function LoginPage() {
 
     return (
         <div className="auth-container">
-            <Loader isLoading={loading} />
             <div className="auth-split-layout">
                 {/* Branding Panel */}
                 <motion.div
@@ -62,19 +70,21 @@ export default function LoginPage() {
                             <FiGrid /> ModernCRM
                         </div>
                         <h1 className="brand-headline">
-                            Sales intelligence, simplified.
+                            Manage your pipeline with precision.
                         </h1>
                         <p className="brand-subline">
-                            The definitive platform for high-performance teams to scale relationship-driven growth.
+                            The all-in-one platform for modern sales teams to track, analyze, and close deals faster than ever.
                         </p>
 
-                        <div className="testimonial-box" style={{ background: 'rgba(255,255,255,0.1)', padding: '2rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.2)' }}>
-                            <p style={{ fontStyle: 'italic', marginBottom: '1rem' }}>
-                                &quot;The transition to ModernCRM was the best decision for our sales growth. The UI is intuitive and the analytics are groundbreaking.&quot;
+                        <div className="testimonial-box">
+                            <p className="testimonial-text">
+                                "Switching to ModernCRM was the best decision for our sales growth. The UI is intuitive and the analytics are groundbreaking."
                             </p>
-                            <div>
-                                <strong>Sarah Jenkins</strong>
-                                <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>Head of Sales @ TechFlow</div>
+                            <div className="testimonial-author">
+                                <div className="author-info">
+                                    <h5>Sarah Jenkins</h5>
+                                    <span>Head of Sales @ TechFlow</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -89,10 +99,10 @@ export default function LoginPage() {
                     >
                         <div className="auth-header">
                             <h2 className="auth-title">
-                                {isLogin ? 'Welcome back' : 'Get started'}
+                                {isLogin ? 'Sign In' : 'Get Started'}
                             </h2>
                             <p className="auth-subtitle">
-                                {isLogin ? 'Enter your credentials to access ModernCRM.' : 'Create your account to start growing.'}
+                                {isLogin ? 'Enter your details to access your workspace.' : 'Create your pro account in seconds.'}
                             </p>
                         </div>
 
@@ -145,9 +155,9 @@ export default function LoginPage() {
                             </div>
 
                             <div className="input-field">
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <div className="flex justify-between">
                                     <label>Password</label>
-                                    {isLogin && <a href="#" style={{ color: 'var(--primary-color)', fontSize: '0.8rem', fontWeight: 600 }}>Forgot?</a>}
+                                    {isLogin && <a href="#" className="forgot-password">Forgot?</a>}
                                 </div>
                                 <div className="input-wrapper">
                                     <FiLock />
@@ -166,21 +176,30 @@ export default function LoginPage() {
                             <button type="submit" className="auth-btn" disabled={loading}>
                                 {loading ? 'Processing...' : (
                                     <>
-                                        {isLogin ? 'Sign In' : 'Create Account'}
+                                        {isLogin ? 'Sign Into Workspace' : 'Create My Account'}
                                         <FiArrowRight />
                                     </>
                                 )}
                             </button>
                         </form>
 
-                        <div style={{ marginTop: '2.5rem', textAlign: 'center', fontSize: '0.9rem' }}>
-                            {isLogin ? "Don&apos;t have an account?" : "Already have an account?"}
+                        <div className="social-login">
+                            <div className="social-divider">Or continue with</div>
+                            <button className="social-btn">
+                                <img src="https://www.google.com/favicon.ico" alt="Google" width="16" />
+                                Google Account
+                            </button>
+                        </div>
+
+                        <div className="auth-footer">
+                            {isLogin ? "New to ModernCRM?" : "Already have an account?"}
                             <button
+                                className="auth-link"
                                 onClick={() => {
                                     setIsLogin(!isLogin);
                                     setError('');
                                 }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: '0.5rem', fontWeight: 800, color: 'var(--primary-color)' }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                             >
                                 {isLogin ? 'Sign Up' : 'Sign In'}
                             </button>

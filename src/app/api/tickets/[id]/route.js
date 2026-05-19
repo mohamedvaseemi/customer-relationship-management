@@ -1,39 +1,30 @@
-import { getTicketById, updateTicket, deleteTicket } from '@/lib/controllers/ticketController';
-import { getAuthUser } from '@/lib/auth';
-
-export async function GET(req, { params }) {
-    const { id } = await params;
-    const user = getAuthUser(req);
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    try {
-        const result = await getTicketById(id);
-        return Response.json(result);
-    } catch (error) {
-        return Response.json({ error: error.message }, { status: 404 });
-    }
-}
+import { NextResponse } from 'next/server';
+import { pool } from '@/lib/db';
+import { verifyAuth } from '@/lib/auth';
 
 export async function PUT(req, { params }) {
-    const { id } = await params;
-    const user = getAuthUser(req);
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     try {
-        const body = await req.json();
-        const result = await updateTicket(id, body);
-        return Response.json(result);
-    } catch (error) {
-        return Response.json({ error: error.message }, { status: 400 });
-    }
-}
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
+        }
 
-export async function DELETE(req, { params }) {
-    const { id } = await params;
-    const user = getAuthUser(req);
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    try {
-        const result = await deleteTicket(id);
-        return Response.json(result);
+        const { id } = await params;
+        const body = await req.json();
+        const { status, priority, assigned_to } = body;
+
+        await pool.query(
+            `UPDATE tickets SET status = COALESCE($1, status), 
+                               priority = COALESCE($2, priority),
+                               assigned_to = COALESCE($3, assigned_to),
+                               updated_at = CURRENT_TIMESTAMP
+             WHERE id = $4`,
+            [status, priority, assigned_to, id]
+        );
+
+        return NextResponse.json({ message: 'Ticket updated successfully' });
     } catch (error) {
-        return Response.json({ error: error.message }, { status: 400 });
+        console.error('Update ticket error:', error);
+        return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }

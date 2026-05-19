@@ -1,35 +1,91 @@
-import { getAllLeads, createLead } from '@/lib/controllers/leadController';
-import { getAuthUser } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+import { pool } from '@/lib/db';
+import { verifyAuth } from '@/lib/auth';
 
+// GET all leads
 export async function GET(req) {
-    const user = getAuthUser(req);
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { searchParams } = new URL(req.url);
-    const filters = {
-        status: searchParams.get('status'),
-        priority: searchParams.get('priority'),
-        source: searchParams.get('source'),
-        search: searchParams.get('search')
-    };
-
     try {
-        const result = await getAllLeads(filters);
-        return Response.json(result);
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
+        }
+
+        const { searchParams } = req.nextUrl;
+        const status = searchParams.get('status');
+        const priority = searchParams.get('priority');
+        const source = searchParams.get('source');
+
+        let queryStr = `
+            SELECT l.*, c.first_name, c.last_name, c.email, c.company,
+                   u.name as assigned_to_name
+            FROM leads l
+            LEFT JOIN contacts c ON l.contact_id = c.id
+            LEFT JOIN users u ON l.assigned_to = u.id
+            WHERE 1=1
+        `;
+        const params = [];
+        let paramCount = 1;
+
+        if (status) {
+            queryStr += ` AND l.status = $${paramCount}`;
+            params.push(status);
+            paramCount++;
+        }
+
+        if (priority) {
+            queryStr += ` AND l.priority = $${paramCount}`;
+            params.push(priority);
+            paramCount++;
+        }
+
+        if (source) {
+            queryStr += ` AND l.source = $${paramCount}`;
+            params.push(source);
+            paramCount++;
+        }
+
+        queryStr += ' ORDER BY l.created_at DESC';
+
+        const leads = await pool.query(queryStr, params);
+        return NextResponse.json({ leads: leads.rows });
     } catch (error) {
-        return Response.json({ error: error.message }, { status: 500 });
+        console.error('Get leads error:', error);
+        return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }
 
+// POST create lead
 export async function POST(req) {
-    const user = getAuthUser(req);
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
     try {
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
+        }
+
         const body = await req.json();
-        const result = await createLead(body, user.id);
-        return Response.json(result);
+        const {
+            contact_id, title, value, currency, status, priority, source,
+            expected_close_date, probability, assigned_to, notes
+        } = body;
+
+        const result = await pool.query(
+            `INSERT INTO leads (
+                contact_id, title, value, currency, status, priority, source,
+                expected_close_date, probability, assigned_to, notes, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+            [
+                contact_id, title, value, currency || 'USD', status || 'new',
+                priority || 'medium', source, expected_close_date, probability || 50,
+                assigned_to, notes, decoded.id
+            ]
+        );
+
+        return NextResponse.json({
+            message: 'Lead created successfully',
+            lead: result.rows[0]
+        }, { status: 201 });
     } catch (error) {
-        return Response.json({ error: error.message }, { status: 400 });
+        console.error('Create lead error:', error);
+        return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }

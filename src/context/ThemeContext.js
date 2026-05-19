@@ -1,36 +1,34 @@
-'use client';
-
+"use client";
 import { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
-export function ThemeProvider({ children }) {
-    const [theme, setTheme] = useState(() => {
-        // Fallback for SSR
-        if (typeof window === 'undefined') return 'light';
-        return localStorage.getItem('theme') || 'light';
-    });
-    const [mounted, setMounted] = useState(false);
+export const ThemeProvider = ({ children }) => {
+    const [theme, setTheme] = useState('light');
 
     useEffect(() => {
-        setMounted(true);
-        // Ensure the class name is set on the document element once mounted
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            setTheme(savedTheme);
+        }
+    }, []);
+
+    useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
     }, [theme]);
 
-    const updateTheme = (newTheme) => {
-        setTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-        document.documentElement.setAttribute('data-theme', newTheme);
-    };
-
-    // To prevent hydration mismatch, we don't render children until mounted
-    // OR we return a stable layout. Let's return children but provide a 'mounted' flag if needed.
     return (
-        <ThemeContext.Provider value={{ theme, setTheme: updateTheme, mounted }}>
+        <ThemeContext.Provider value={{ theme, setTheme }}>
             {children}
         </ThemeContext.Provider>
     );
-}
+};
 
-export const useTheme = () => useContext(ThemeContext);
+export const useTheme = () => {
+    const context = useContext(ThemeContext);
+    if (!context) {
+        throw new Error('useTheme must be used within a ThemeProvider');
+    }
+    return context;
+};

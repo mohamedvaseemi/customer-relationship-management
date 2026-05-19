@@ -1,60 +1,50 @@
-'use client';
-
-import React, { useState, useRef, useEffect } from 'react';
-import { FiMessageSquare, FiX, FiSend, FiZap, FiMenu } from 'react-icons/fi';
+"use client";
+import { useState, useRef, useEffect } from 'react';
+import { FiMessageSquare, FiX, FiSend, FiZap } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
-import './ChatWidget.css';
+import '@/styles/ChatWidget.css';
+
+const BOT_RESPONSES = (msg) => {
+    const m = msg.toLowerCase();
+    if (m.includes('price') || m.includes('cost') || m.includes('plan'))
+        return "NexCRM starts at $12/user/month. Would you like a demo?";
+    if (m.includes('ticket') || m.includes('support') || m.includes('issue'))
+        return "You can create a support ticket from the Service Desk section. Want me to take you there?";
+    if (m.includes('lead') || m.includes('deal') || m.includes('pipeline'))
+        return "You can manage all leads in the Sales Pipeline. Use the Kanban board to track progress!";
+    if (m.includes('hello') || m.includes('hi') || m.includes('hey'))
+        return "Hey! 👋 I'm NexBot — here to help you get the most out of NexCRM. What do you need?";
+    return "Great question! Our support team will follow up shortly. In the meantime, explore the Help Center.";
+};
 
 const ChatWidget = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { id: 1, text: "Welcome to ModernCRM Intellect. I'm ModernBot—your high-performance business analyst. How can I optimize your sales strategy today?", sender: 'bot', timestamp: new Date() }
+        { sender: 'bot', text: 'Hey there! 👋 How can NexCRM help you today?' }
     ]);
-    const [inputValue, setInputValue] = useState('');
-    const messagesEndRef = useRef(null);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const [input, setInput] = useState('');
+    const listRef = useRef();
 
     useEffect(() => {
-        if (isOpen) {
-            scrollToBottom();
+        if (listRef.current) {
+            listRef.current.scrollTop = listRef.current.scrollHeight;
         }
-    }, [messages, isOpen]);
+    }, [messages]);
 
     const handleSend = () => {
-        if (!inputValue.trim()) return;
+        const trimmed = input.trim();
+        if (!trimmed) return;
 
-        const userMessage = {
-            id: Date.now(),
-            text: inputValue,
-            sender: 'user',
-            timestamp: new Date()
-        };
+        setMessages(prev => [...prev, { sender: 'user', text: trimmed }]);
+        setInput('');
 
-        setMessages(prev => [...prev, userMessage]);
-        setInputValue('');
-
-        // Intelligence Engine Simulation
         setTimeout(() => {
-            const botResponse = generateBotResponse(inputValue);
-            setMessages(prev => [...prev, {
-                id: Date.now() + 1,
-                text: botResponse,
-                sender: 'bot',
-                timestamp: new Date()
-            }]);
-        }, 800);
+            setMessages(prev => [...prev, { sender: 'bot', text: BOT_RESPONSES(trimmed) }]);
+        }, 750);
     };
 
-    const generateBotResponse = (input) => {
-        const text = input.toLowerCase();
-        if (text.includes('hello') || text.includes('hi')) return "Greetings focused on growth! I'm scanning ModernCRM data to find your next major deal. What do you need?";
-        if (text.includes('lead') || text.includes('contact')) return "Found 47 high-priority leads in the pipeline. I recommend contacting IBM and Oracle leads immediately due to high engagement scores.";
-        if (text.includes('deal') || text.includes('revenue')) return "Your quarterly revenue is projected to exceed targets by 12%. Shall I generate a forecast report for the executive team?";
-        if (text.includes('status')) return "All ModernCRM intelligence systems are operational. Data synchronization is at 100% precision.";
-        return "Insightful query. I'm analyzing that within the ModernCRM ecosystem. Would you like me to cross-reference that with your current KPIs?";
+    const handleKey = (e) => {
+        if (e.key === 'Enter') handleSend();
     };
 
     return (
@@ -62,61 +52,70 @@ const ChatWidget = () => {
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        className="chatbot-window card shadow-premium"
-                        initial={{ opacity: 0, y: 50, scale: 0.9, transformOrigin: 'bottom right' }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 50, scale: 0.9 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        initial={{ opacity: 0, scale: 0.85, y: 16 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.85, y: 16 }}
+                        transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                        className="chatbot-window"
                     >
-                        <div className="chat-header gradient-primary">
+                        {/* Header */}
+                        <div className="chat-header">
                             <div className="chat-header-info">
-                                <div className="chat-status-dot"></div>
-                                <span>ModernBot Intellect</span>
+                                <FiZap size={18} />
+                                <span>NexBot Assistant</span>
+                                <div className="chat-status-dot" title="Online" />
                             </div>
                             <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
-                                <FiX size={18} />
+                                <FiX size={16} />
                             </button>
                         </div>
 
-                        <div className="chat-messages">
-                            {messages.map((msg, i) => (
+                        {/* Messages */}
+                        <div className="chat-messages" ref={listRef}>
+                            {messages.map((m, i) => (
                                 <motion.div
-                                    key={msg.id}
-                                    className={`chat-bubble ${msg.sender}`}
-                                    initial={{ opacity: 0, x: msg.sender === 'bot' ? -20 : 20, y: 10 }}
-                                    animate={{ opacity: 1, x: 0, y: 0 }}
-                                    transition={{ delay: 0.1 }}
+                                    key={i}
+                                    initial={{ opacity: 0, y: 6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className={`chat-bubble ${m.sender}`}
                                 >
-                                    {msg.text}
+                                    {m.text}
                                 </motion.div>
                             ))}
-                            <div ref={messagesEndRef} />
                         </div>
 
+                        {/* Input Bar */}
                         <div className="chat-input-bar">
                             <input
                                 type="text"
                                 className="chat-input"
-                                placeholder="Query ModernCRM Intelligence..."
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                placeholder="Type a message..."
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyPress={handleKey}
                             />
-                            <button className="chat-send-btn shadow-glow" onClick={handleSend}>
-                                <FiSend size={20} />
+                            <button className="chat-send-btn" onClick={handleSend}>
+                                <FiSend size={16} />
                             </button>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
+            {/* Floating Trigger Button */}
             <motion.div
-                className="chatbot-button shadow-glow"
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.93 }}
+                className="chatbot-button"
                 onClick={() => setIsOpen(!isOpen)}
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                whileTap={{ scale: 0.9 }}
             >
-                {isOpen ? <FiX size={26} /> : <FiZap size={26} />}
+                <AnimatePresence mode="wait">
+                    {isOpen
+                        ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}><FiX size={22} /></motion.span>
+                        : <motion.span key="msg" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}><FiMessageSquare size={22} /></motion.span>
+                    }
+                </AnimatePresence>
             </motion.div>
         </div>
     );

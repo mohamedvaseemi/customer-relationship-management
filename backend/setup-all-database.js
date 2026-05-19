@@ -1,42 +1,20 @@
-import pkg from 'pg';
-const { Pool } = pkg;
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
+/**
+ * Manual DB setup script — run this once if needed.
+ * The server already auto-creates tables on startup.
+ *
+ * Usage:  node setup-all-database.js
+ */
+import { testConnection, closePool } from './config/database.js';
 
-dotenv.config();
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
-const schemaFiles = [
-    'schema.sql',
-    'deals_schema.sql',
-    'tickets_schema.sql',
-    'chat_schema.sql',
-    'lead_intelligence_schema.sql',
-    'automations_schema.sql'
-];
-
-async function setup() {
-    for (const file of schemaFiles) {
-        const filePath = path.join('config', file);
-        if (fs.existsSync(filePath)) {
-            console.log(`Running ${file}...`);
-            const sql = fs.readFileSync(filePath, 'utf8');
-            try {
-                await pool.query(sql);
-                console.log(`${file} completed.`);
-            } catch (err) {
-                console.warn(`Warning running ${file}:`, err.message);
-            }
-        } else {
-            console.log(`Skip ${file} (not found)`);
-        }
+(async () => {
+    try {
+        console.log('🚀 Manual DB setup started...\n');
+        // testConnection auto-creates all tables via initSchema()
+        await testConnection();
+        console.log('\n✨ All tables are ready. Your CRM database is good to go!');
+    } catch (err) {
+        console.error('Setup failed:', err.message);
+    } finally {
+        await closePool();
     }
-    process.exit();
-}
-
-setup();
+})();

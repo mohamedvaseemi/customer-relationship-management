@@ -1,27 +1,21 @@
 import jwt from 'jsonwebtoken';
 
-export const getAuthUser = (req) => {
+export const verifyAuth = (req) => {
     try {
-        const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-        
-        if (!authHeader) {
+        const authHeader = req.headers.get('authorization');
+        const token = authHeader?.replace('Bearer ', '');
+
+        if (!token) {
             return null;
         }
 
-        const token = authHeader.split(' ')[1]; // Splits 'Bearer <token>'
-
-        if (!token || token === 'null' || token === 'undefined') {
-            return null;
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'MODERN_CRM_SECRET');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         return decoded;
     } catch (error) {
-        console.error('JWT Verification failed:', error.message);
         return null;
     }
 };
 
-export const isAdmin = (user) => {
-    return user?.role === 'admin';
+export const adminOnly = (user) => {
+    return user && user.role === 'admin';
 };
