@@ -11,3 +11,4 @@ export const logAction = async (module, record_id, action, user_id, changes) => 
     console.error('Audit log failed:', error);
   }
 };
+
