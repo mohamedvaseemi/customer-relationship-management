@@ -63,6 +63,17 @@ export const AuthProvider = ({ children }) => {
         return response.data;
     };
 
+    const loginWithGoogle = async (credential) => {
+        const response = await authAPI.googleAuth(credential);
+        const { token, user } = response.data;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('token', token);
+        }
+        setToken(token);
+        setUser(user);
+        return response.data;
+    };
+
     const logout = () => {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('token');
@@ -71,19 +82,15 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
-    const [sampleDataEnabled, setSampleDataEnabled] = useState(false);
+const [sampleDataEnabled, setSampleDataEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('sampleDataEnabled');
+        return saved === 'true';
+    }
+    return false;
+});
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('sampleDataEnabled');
-            if (saved === null) {
-                localStorage.setItem('sampleDataEnabled', 'true');
-                setSampleDataEnabled(true);
-            } else {
-                setSampleDataEnabled(saved === 'true');
-            }
-        }
-    }, []);
+// No need for a useEffect to set default true; sampleDataEnabled is initialized from storage.
 
     const toggleSampleData = () => {
         const newValue = !sampleDataEnabled;
@@ -100,6 +107,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
+        loginWithGoogle,
         logout,
         isAuthenticated: !!token,
         sampleDataEnabled,

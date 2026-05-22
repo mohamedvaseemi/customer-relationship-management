@@ -1,11 +1,12 @@
 "use client";
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiSettings, FiX } from 'react-icons/fi';
 import ThemeSelector from './ThemeSelector';
+import { useTheme } from '../context/ThemeContext';
 
 const FloatingCustomizer = () => {
-    const [isOpen, setIsOpen] = useState(false);
+    const { customizerOpen: isOpen, setCustomizerOpen: setIsOpen } = useTheme();
 
     return (
         <>

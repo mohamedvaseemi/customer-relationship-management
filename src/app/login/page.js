@@ -3,19 +3,18 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiGrid } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
 import { motion, AnimatePresence } from 'framer-motion';
 import '@/styles/Auth.css';
 
 export default function Login() {
-    const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         email: '',
-        password: '',
-        name: ''
+        password: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login, register, user } = useAuth();
+    const { login, user } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
@@ -38,21 +37,57 @@ export default function Login() {
         setLoading(true);
 
         try {
-            if (isLogin) {
-                await login({ email: formData.email, password: formData.password });
-            } else {
-                await register({
-                    name: formData.name,
-                    email: formData.email,
-                    password: formData.password
-                });
-            }
+            await login({ email: formData.email, password: formData.password });
             router.push('/dashboard');
         } catch (err) {
             setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
         } finally {
             setLoading(false);
         }
+    };
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const errorType = params.get('error');
+            if (errorType) {
+                let userFriendlyError = 'Google authentication failed.';
+                if (errorType === 'google_config_missing') {
+                    userFriendlyError = 'Google Sign-In is not configured correctly on the server. Please check environment variables.';
+                } else if (errorType === 'missing_authorization_code') {
+                    userFriendlyError = 'Authorization code was not returned from Google. Please try again.';
+                } else if (errorType === 'invalid_google_payload') {
+                    userFriendlyError = 'Could not verify your identity with Google.';
+                } else if (errorType === 'localstorage_failed') {
+                    userFriendlyError = 'Failed to store your authentication session locally. Please enable local storage.';
+                } else if (errorType === 'access_denied') {
+                    userFriendlyError = 'Access was denied. You cancelled Google Sign-In.';
+                } else {
+                    userFriendlyError = `Google authentication failed: ${decodeURIComponent(errorType)}`;
+                }
+                setError(userFriendlyError);
+                
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, []);
+
+    const handleGoogleLogin = () => {
+        setError('');
+        const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
+        console.log(clientId);
+        if (!clientId || clientId === 'your_google_client_id.apps.googleusercontent.com') {
+            setError('Google Sign-In client ID is not configured in .env file.');
+            return;
+        }
+        
+        const redirectUri = `${window.location.origin}/api/auth/callback/google`;
+        const scope = 'openid email profile';
+        const responseType = 'code';
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=${responseType}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+        
+        window.location.href = authUrl;
     };
 
     return (
@@ -76,17 +111,6 @@ export default function Login() {
                             The all-in-one platform for modern sales teams to track, analyze, and close deals faster than ever.
                         </p>
 
-                        <div className="testimonial-box">
-                            <p className="testimonial-text">
-                                "Switching to ModernCRM was the best decision for our sales growth. The UI is intuitive and the analytics are groundbreaking."
-                            </p>
-                            <div className="testimonial-author">
-                                <div className="author-info">
-                                    <h5>Sarah Jenkins</h5>
-                                    <span>Head of Sales @ TechFlow</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </motion.div>
 
@@ -99,10 +123,10 @@ export default function Login() {
                     >
                         <div className="auth-header">
                             <h2 className="auth-title">
-                                {isLogin ? 'Sign In' : 'Get Started'}
+                                Sign In
                             </h2>
                             <p className="auth-subtitle">
-                                {isLogin ? 'Enter your details to access your workspace.' : 'Create your pro account in seconds.'}
+                                Enter your details to access your workspace.
                             </p>
                         </div>
 
@@ -119,24 +143,6 @@ export default function Login() {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-
-                            {!isLogin && (
-                                <div className="input-field">
-                                    <label>Full Name</label>
-                                    <div className="input-wrapper">
-                                        <FiUser />
-                                        <input
-                                            type="text"
-                                            name="name"
-                                            className="input-styled"
-                                            placeholder="John Doe"
-                                            value={formData.name}
-                                            onChange={handleChange}
-                                            required={!isLogin}
-                                        />
-                                    </div>
-                                </div>
-                            )}
 
                             <div className="input-field">
                                 <label>Work Email</label>
@@ -157,7 +163,7 @@ export default function Login() {
                             <div className="input-field">
                                 <div className="flex justify-between">
                                     <label>Password</label>
-                                    {isLogin && <a href="#" className="forgot-password">Forgot?</a>}
+                                    <a href="#" className="forgot-password">Forgot?</a>
                                 </div>
                                 <div className="input-wrapper">
                                     <FiLock />
@@ -176,7 +182,7 @@ export default function Login() {
                             <button type="submit" className="auth-btn" disabled={loading}>
                                 {loading ? 'Processing...' : (
                                     <>
-                                        {isLogin ? 'Sign Into Workspace' : 'Create My Account'}
+                                        Sign Into Workspace
                                         <FiArrowRight />
                                     </>
                                 )}
@@ -185,23 +191,25 @@ export default function Login() {
 
                         <div className="social-login">
                             <div className="social-divider">Or continue with</div>
-                            <button className="social-btn">
-                                <img src="https://www.google.com/favicon.ico" alt="Google" width="16" />
-                                Google Account
+                            <button
+                                type="button"
+                                className="social-btn"
+                                onClick={handleGoogleLogin}
+                                disabled={loading}
+                            >
+                                <FcGoogle size={20} />
+                                Sign in with Google
                             </button>
                         </div>
 
                         <div className="auth-footer">
-                            {isLogin ? "New to ModernCRM?" : "Already have an account?"}
+                            New to ModernCRM?
                             <button
                                 className="auth-link"
-                                onClick={() => {
-                                    setIsLogin(!isLogin);
-                                    setError('');
-                                }}
+                                onClick={() => router.push('/register')}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                             >
-                                {isLogin ? 'Sign Up' : 'Sign In'}
+                                Sign Up
                             </button>
                         </div>
                     </motion.div>
@@ -210,3 +218,4 @@ export default function Login() {
         </div>
     );
 }
+

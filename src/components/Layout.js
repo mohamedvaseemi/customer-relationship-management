@@ -24,10 +24,16 @@ const Layout = ({ children }) => {
     const [themeOpen, setThemeOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searching, setSearching] = useState(false);
+    
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+
     const pathname = usePathname();
     const router = useRouter();
     const { user, logout, sampleDataEnabled, toggleSampleData } = useAuth();
-    const { theme } = useTheme();
+    const { theme, setCustomizerOpen } = useTheme();
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -45,17 +51,93 @@ const Layout = ({ children }) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const mockSearchResults = [
-        { type: 'lead', title: 'Enterprise License Deal', sub: 'TechFlow Inc.', path: '/leads' },
-        { type: 'contact', title: 'Sarah Jenkins', sub: 'sarah@techflow.com', path: '/contacts' },
-        { type: 'activity', title: 'Follow-up Call', sub: 'Due in 2 hours', path: '/activities' },
-        { type: 'page', title: 'Sales Dashboard', sub: 'Main overview', path: '/dashboard' },
-        { type: 'account', title: 'Global Tech Solutions', sub: 'Enterprise Account', path: '/accounts' },
-        { type: 'deal', title: 'Cloud Infrastructure Migration', sub: 'Negotiation Stage', path: '/deals' }
-    ].filter(item =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sub.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Live Search Effect
+    useEffect(() => {
+        if (!searchQuery) {
+            setSearchResults([]);
+            return;
+        }
+
+        const delayDebounceFn = setTimeout(async () => {
+            setSearching(true);
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.results) {
+                    setSearchResults(data.results);
+                }
+            } catch (err) {
+                console.error('Search error:', err);
+            } finally {
+                setSearching(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
+
+    // Fetch Notifications
+    const fetchNotifications = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/notifications', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.notifications) {
+                setNotifications(data.notifications);
+                setUnreadCount(data.notifications.filter(n => !n.is_read).length);
+            }
+        } catch (err) {
+            console.error('Fetch notifications error:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (user) {
+            fetchNotifications();
+            const interval = setInterval(fetchNotifications, 20000);
+            return () => clearInterval(interval);
+        }
+    }, [user]);
+
+    const handleMarkAllRead = async (e) => {
+        if (e) e.stopPropagation();
+        try {
+            const token = localStorage.getItem('token');
+            await fetch('/api/notifications', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ action: 'read_all' })
+            });
+            fetchNotifications();
+        } catch (err) {
+            console.error('Mark all read error:', err);
+        }
+    };
+
+    const handleMarkRead = async (id) => {
+        try {
+            const token = localStorage.getItem('token');
+            await fetch('/api/notifications', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ id })
+            });
+            fetchNotifications();
+        } catch (err) {
+            console.error('Mark read error:', err);
+        }
+    };
 
     const menuGroups = [
         {
@@ -93,15 +175,17 @@ const Layout = ({ children }) => {
         }
     ];
 
+    const adminItems = [];
     if (user?.role === 'admin') {
-        menuGroups.push({
-            title: 'Administration',
-            items: [
-                { path: '/users', icon: FiUsers, label: 'User Management' },
-                { path: '/settings', icon: FiSettings, label: 'System Settings' },
-            ]
-        });
+        adminItems.push({ path: '/users', icon: FiUsers, label: 'User Management' });
     }
+    adminItems.push({ path: '/settings', icon: FiSettings, label: 'System Settings' });
+
+    menuGroups.push({
+        title: 'Administration',
+        items: adminItems
+    });
+
 
     const handleLogout = () => {
         logout();
@@ -118,6 +202,22 @@ const Layout = ({ children }) => {
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
+
+    // Refresh layout when sample data toggle changes (storage event)
+    useEffect(() => {
+        const handleStorage = (e) => {
+            if (e.key === 'sampleDataEnabled') {
+                // Refresh data without full page reload
+                if (router.refresh) {
+                    router.refresh();
+                } else {
+                    router.replace(router.asPath);
+                }
+            }
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, [router]);
 
     return (
         <div className={`layout ${theme}`}>
@@ -151,8 +251,8 @@ const Layout = ({ children }) => {
                             </div>
                             <div className="search-results">
                                 {searchQuery ? (
-                                    mockSearchResults.length > 0 ? (
-                                        mockSearchResults.map((res, i) => (
+                                    searchResults.length > 0 ? (
+                                        searchResults.map((res, i) => (
                                             <div
                                                 key={i}
                                                 className="search-result-item"
@@ -166,6 +266,8 @@ const Layout = ({ children }) => {
                                                     {res.type === 'contact' && <FiUsers />}
                                                     {res.type === 'activity' && <FiCalendar />}
                                                     {res.type === 'page' && <FiGrid />}
+                                                    {res.type === 'company' && <FiBriefcase />}
+                                                    {res.type === 'deal' && <FiDollarSign />}
                                                 </div>
                                                 <div className="res-info">
                                                     <div className="res-title">{res.title}</div>
@@ -175,7 +277,9 @@ const Layout = ({ children }) => {
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="no-results">No results for "{searchQuery}"</div>
+                                        <div className="no-results">
+                                            {searching ? 'Searching...' : `No results for "${searchQuery}"`}
+                                        </div>
                                     )
                                 ) : (
                                     <div className="search-hint">Type to start searching across ModernCRM...</div>
@@ -221,7 +325,6 @@ const Layout = ({ children }) => {
                                 >
                                     <item.icon className="nav-icon" />
                                     {sidebarOpen && <span className="nav-label">{item.label}</span>}
-                                    {pathname === item.path && <motion.div layoutId="activeNav" className="active-indicator" />}
                                 </Link>
                             ))}
                         </div>
@@ -287,30 +390,14 @@ const Layout = ({ children }) => {
                             <span>Sample Data: <b>{sampleDataEnabled ? 'ON' : 'OFF'}</b></span>
                         </button>
 
-                        <div className="dropdown-container">
-                            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setThemeOpen(!themeOpen); }} title="Switch Theme">
-                                {theme?.includes('dark') || theme === 'midnight' ? <FiMoon size={20} /> : <FiSun size={20} />}
-                            </button>
-
-                            <AnimatePresence>
-                                {themeOpen && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        className="dropdown-menu theme-dropdown card"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <ThemeSelector onClose={() => setThemeOpen(false)} />
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
+                        <button className="icon-btn" onClick={() => setCustomizerOpen(true)} title="Switch Theme">
+                            {theme?.includes('dark') || theme === 'midnight' ? <FiMoon size={20} /> : <FiSun size={20} />}
+                        </button>
 
                         <div className="dropdown-container">
                             <button className="icon-btn relative" onClick={(e) => { e.stopPropagation(); setNotificationsOpen(!notificationsOpen); }}>
                                 <FiBell size={20} />
-                                <span className="notification-dot"></span>
+                                {unreadCount > 0 && <span className="notification-dot"></span>}
                             </button>
 
                             <AnimatePresence>
@@ -322,24 +409,35 @@ const Layout = ({ children }) => {
                                         className="dropdown-menu notifications-dropdown card"
                                     >
                                         <div className="dropdown-header">
-                                            <span>Notifications</span>
-                                            <button className="text-primary text-xs">Mark all read</button>
+                                            <span>Notifications {unreadCount > 0 && `(${unreadCount})`}</span>
+                                            {unreadCount > 0 && (
+                                                <button onClick={handleMarkAllRead} className="text-primary text-xs" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                    Mark all read
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="dropdown-content">
-                                            <div className="notification-item unread">
-                                                <div className="notification-icon bg-primary">L</div>
-                                                <div className="notification-info">
-                                                    <p><b>New Lead:</b> John Doe from ABC Corp</p>
-                                                    <span>2 minutes ago</span>
-                                                </div>
-                                            </div>
-                                            <div className="notification-item">
-                                                <div className="notification-icon bg-success">T</div>
-                                                <div className="notification-info">
-                                                    <p><b>Task Completed:</b> Follow up with Sarah</p>
-                                                    <span>1 hour ago</span>
-                                                </div>
-                                            </div>
+                                            {notifications.length > 0 ? (
+                                                notifications.map(n => (
+                                                    <div
+                                                        key={n.id}
+                                                        className={`notification-item ${!n.is_read ? 'unread' : ''}`}
+                                                        onClick={() => handleMarkRead(n.id)}
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        <div className={`notification-icon ${n.type === 'warning' ? 'bg-danger' : 'bg-primary'}`}>
+                                                            {n.title ? n.title.charAt(0).toUpperCase() : 'N'}
+                                                        </div>
+                                                        <div className="notification-info">
+                                                            <p><b>{n.title}</b></p>
+                                                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.message}</p>
+                                                            <span>{new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="p-4 text-center text-xs text-muted">No notifications</div>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}
@@ -367,13 +465,22 @@ const Layout = ({ children }) => {
                                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                         className="dropdown-menu user-dropdown card"
                                     >
-                                        <div className="dropdown-item" onClick={() => router.push('/settings')}>
+                                        <div className="dropdown-item" onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUserDropdownOpen(false);
+                                            router.push('/settings');
+                                        }}>
                                             <FiSettings className="dropdown-icon" /> Settings
                                         </div>
                                         <div className="dropdown-divider" />
-                                        <div className="dropdown-item logout-text" onClick={handleLogout}>
+                                        <div className="dropdown-item logout-text" onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUserDropdownOpen(false);
+                                            handleLogout();
+                                        }}>
                                             <FiLogOut className="dropdown-icon" /> Sign Out
                                         </div>
+
                                     </motion.div>
                                 )}
                             </AnimatePresence>

@@ -225,6 +225,15 @@
 }
 
 /* Icon Buttons */
+.active-indicator {
+    position: absolute;
+    inset: 2px;
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.3);
+    pointer-events: none;
+    transition: var(--transition-base);
+}
 .icon-btn {
     width: 36px;
     height: 36px;
@@ -323,13 +332,22 @@
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
-    z-index: 400;
+    z-index: 1000; /* raised for overlay visibility */
     min-width: 280px;
     border-radius: var(--radius-lg);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-premium);
     overflow: hidden;
+    transition: var(--transition-base);
+}
+
+[data-theme="dark"] .dropdown-menu,
+[data-theme="midnight"] .dropdown-menu {
+    background: rgba(30, 41, 59, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .theme-dropdown {
@@ -655,17 +673,8 @@
 }
 
 /* Active nav indicator */
-.active-indicator {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 60%;
-    background: white;
-    border-radius: 4px 0 0 4px;
-    opacity: 0.8;
-}
+/* .active-indicator hidden per user request */
+.active-indicator { display: none; }
 
 /* =====================
    RESPONSIVE

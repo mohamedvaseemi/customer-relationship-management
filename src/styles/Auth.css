@@ -12,7 +12,7 @@
 /* Left Side: Illustration / Branding */
 .auth-branding-panel {
     flex: 1;
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    background: linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -102,12 +102,13 @@
 
 /* Right Side: Form */
 .auth-form-panel {
-    flex: 0 0 540px;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    padding: 5rem;
+    justify-content: start;
+    padding: 3rem 2rem; /* reduced padding to shrink form */
     background: var(--bg-primary);
+    /* Removed fixed height and overflow to allow full page height */
 }
 
 .auth-form-box {
@@ -138,6 +139,21 @@
     gap: 1.5rem;
 }
 
+/* Add spacing for buttons inside the auth form */
+.auth-form button,
+.auth-form .btn {
+    margin-top: 0.75rem;
+}
+
+/* Ensure the form box scrolls if content overflows */
+.auth-form-box {
+    max-width: 400px;
+    width: 100%;
+    margin: 0 auto;
+    /* No max-height or overflow to allow full content */
+}
+
+
 .input-field {
     display: flex;
     flex-direction: column;
@@ -154,9 +170,15 @@
     position: relative;
     display: flex;
     align-items: center;
+    gap: 0.5rem;
 }
 
-.input-wrapper svg {
+/* Ensure selects inside input-wrapper have left padding for icons */
+.input-wrapper select {
+    padding-left: 2.75rem;
+}
+
+.input-wrapper > svg {
     position: absolute;
     left: 1rem;
     color: var(--text-muted);
@@ -178,6 +200,11 @@
     background: var(--bg-primary);
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
     outline: none;
+}
+
+select.input-styled option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 .auth-options {
@@ -209,6 +236,9 @@
     gap: 0.75rem;
     margin-top: 1rem;
 }
+
+/* Button spacing for register steps */
+.auth-form button { margin-top: 0.75rem; }
 
 .auth-btn:hover {
     background: #4338ca;
@@ -295,3 +325,73 @@
         padding: 2rem;
     }
 }
+
+/* Premium Custom Select Styling */
+.input-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 100%;
+    padding: 0.875rem 2.5rem 0.875rem 1rem;
+    background: var(--bg-secondary) url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat;
+    background-position: right 1rem center;
+    background-size: 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: var(--transition-base);
+    outline: none;
+}
+
+.input-field select:focus {
+    border-color: var(--primary-color);
+    background-color: var(--bg-primary);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.input-field select option {
+    background-color: #1e293b;
+    color: #f8fafc;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+}
+
+/* Expanded registration layout for premium horizontal forms */
+@media (min-width: 1100px) {
+    .auth-form-panel.registration-panel {
+    flex: 0 0 540px !important;
+    padding: 2rem !important;
+}
+
+.registration-panel .auth-form-box {
+    max-width: 500px !important;
+}
+    
+    .registration-panel .auth-form-box {
+        max-width: 660px !important;
+    }
+}
+
+.form-horizontal-grid {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 1.25rem 1.5rem;
+}
+
+.form-horizontal-grid .input-field {
+    flex: 1 1 calc(50% - 0.75rem);
+    min-width: 280px;
+}
+
+/* Ensure full width option for specific fields if needed */
+.form-horizontal-grid .input-field.full-width {
+    flex: 0 0 100%;
+}
+
+/* Button spacing for register steps */
+.auth-form .btn { margin-top: 0.75rem; }
+.input-wrapper select { padding-left: 2.75rem !important; }

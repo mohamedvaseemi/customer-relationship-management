@@ -5,12 +5,18 @@ export const verifyAuth = (req) => {
         const authHeader = req.headers.get('authorization');
         const token = authHeader?.replace('Bearer ', '');
 
-        if (!token) {
-            return null;
+        if (token) {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            return decoded;
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        return decoded;
+        // API key fallback – routes will validate the raw key via utils
+        const apiKey = req.headers.get('x-api-key');
+        if (apiKey) {
+            return { apiKey };
+        }
+
+        return null;
     } catch (error) {
         return null;
     }

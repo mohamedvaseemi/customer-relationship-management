@@ -5,7 +5,7 @@ import { pool } from '@/lib/db';
 
 export async function POST(req) {
     try {
-        const { name, email, password, role } = await req.json();
+        const { name, email, password, role, businessDetails, connectionDetails, skipConnection } = await req.json();
 
         // Check if user exists
         const existingUsers = await pool.query(
@@ -27,6 +27,25 @@ export async function POST(req) {
         );
 
         const user = result.rows[0];
+
+        // Insert business details and connection details into crm_settings
+        const { companyName, industry, website, employeeCount } = businessDetails || {};
+        const { backend_url, api_key } = connectionDetails || {};
+
+        await pool.query(
+            `INSERT INTO crm_settings (
+                company_name, industry, website, employee_count, backend_connected, backend_url, api_key
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+                companyName || 'My Company',
+                industry || '',
+                website || '',
+                employeeCount ? parseInt(employeeCount) : null,
+                skipConnection ? 0 : 1,
+                backend_url || '',
+                api_key || ''
+            ]
+        );
 
         // Generate token
         const token = jwt.sign(

@@ -79,11 +79,11 @@ export async function GET(req) {
         let leadsTrend = [];
         try {
             const res = await pool.query(`
-                SELECT TO_CHAR(created_at, 'Mon') as month, COUNT(*) as count
+                SELECT DATE_FORMAT(created_at, '%b') as month, COUNT(*) as count
                 FROM leads
-                WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
-                GROUP BY TO_CHAR(created_at, 'Mon'), DATE_TRUNC('month', created_at)
-                ORDER BY DATE_TRUNC('month', created_at)
+                WHERE created_at >= NOW() - INTERVAL 6 MONTH
+                GROUP BY DATE_FORMAT(created_at, '%b'), DATE_FORMAT(created_at, '%Y-%m')
+                ORDER BY DATE_FORMAT(created_at, '%Y-%m')
             `);
             leadsTrend = res.rows;
         } catch (e) { console.warn('Dashboard: leads trend missing', e.message); }
@@ -92,14 +92,15 @@ export async function GET(req) {
         let revenueTrend = [];
         try {
             const res = await pool.query(`
-                SELECT TO_CHAR(created_at, 'Mon') as month, COALESCE(SUM(amount), 0) as total
+                SELECT DATE_FORMAT(created_at, '%b') as month, COALESCE(SUM(amount), 0) as total
                 FROM deals
-                WHERE stage = 'closed_won' AND created_at >= CURRENT_DATE - INTERVAL '6 months'
-                GROUP BY TO_CHAR(created_at, 'Mon'), DATE_TRUNC('month', created_at)
-                ORDER BY DATE_TRUNC('month', created_at)
+                WHERE stage = 'closed_won' AND created_at >= NOW() - INTERVAL 6 MONTH
+                GROUP BY DATE_FORMAT(created_at, '%b'), DATE_FORMAT(created_at, '%Y-%m')
+                ORDER BY DATE_FORMAT(created_at, '%Y-%m')
             `);
             revenueTrend = res.rows;
         } catch (e) { console.warn('Dashboard: revenue trend missing', e.message); }
+
 
         // Leads by status
         let statusSummary = [];

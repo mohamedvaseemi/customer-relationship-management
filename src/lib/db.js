@@ -49,6 +49,75 @@ const getSSLConfig = () => {
     return false;
 };
 
+const initDatabaseTables = async (rawPool) => {
+    try {
+        console.log('📦 Ensuring CRM tables are configured...');
+        await rawPool.query(`
+            CREATE TABLE IF NOT EXISTS crm_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                company_name VARCHAR(255) NOT NULL,
+                industry VARCHAR(100),
+                website VARCHAR(255),
+                employee_count INT,
+                backend_connected TINYINT DEFAULT 0,
+                db_host VARCHAR(255),
+                db_port VARCHAR(50),
+                db_user VARCHAR(255),
+                db_password VARCHAR(255),
+                db_name VARCHAR(255),
+                backend_url VARCHAR(255),
+                api_key VARCHAR(255),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        `);
+
+        try {
+            await rawPool.query(`
+                ALTER TABLE crm_settings 
+                ADD COLUMN IF NOT EXISTS backend_url VARCHAR(255)
+            `);
+        } catch (e) {
+            // If the MySQL version doesn't support ADD COLUMN IF NOT EXISTS, run fallback
+            try {
+                await rawPool.query('ALTER TABLE crm_settings ADD COLUMN backend_url VARCHAR(255)');
+            } catch (fallbackErr) {
+                // If it already exists, ignore
+            }
+        }
+
+        
+        // New table for API keys
+        await rawPool.query(`
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                key_hash VARCHAR(255) NOT NULL,
+                scopes JSON DEFAULT NULL,
+                is_active TINYINT DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP NULL DEFAULT NULL,
+                expires_at TIMESTAMP NULL DEFAULT NULL,
+                UNIQUE KEY uniq_key_hash (key_hash(12))
+            )
+        `);
+
+        await rawPool.query(`
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT,
+                title VARCHAR(255) NOT NULL,
+                message TEXT,
+                type VARCHAR(50) DEFAULT 'info',
+                is_read TINYINT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ crm_settings, api_keys and notifications tables checked/created.');
+    } catch (err) {
+        console.error('❌ Failed to ensure CRM tables:', err);
+    }
+};
+
 if (!global.mysqlPool) {
     console.log('🏗️ Initializing new MySQL pool...');
     global.mysqlPool = mysql.createPool({
@@ -62,6 +131,7 @@ if (!global.mysqlPool) {
         connectionLimit: 10,
         queueLimit: 0
     });
+    initDatabaseTables(global.mysqlPool);
 }
 
 const rawPool = global.mysqlPool;
@@ -201,7 +271,7 @@ const queryWrapper = async (text, params = []) => {
                 if (upperSql.includes('COUNT(') && upperSql.includes('SUM(')) {
                     return { rows: [{ total_leads: 3, new_leads: 1, qualified_leads: 1, won_leads: 0, lost_leads: 0, total_pipeline_value: 180000.00, total_value: 180000.00, avg_probability: 58.3 }], rowCount: 1 };
                 }
-                if (upperSql.includes('TO_CHAR') || upperSql.includes('DATE_TRUNC') || upperSql.includes('MONTH(')) {
+                if (upperSql.includes('TO_CHAR') || upperSql.includes('DATE_TRUNC') || upperSql.includes('MONTH(') || upperSql.includes('DATE_FORMAT')) {
                     return { rows: [{ month: 'May', count: 3 }], rowCount: 1 };
                 }
                 if (upperSql.includes('STATUS') && upperSql.includes('GROUP BY')) {
@@ -213,7 +283,7 @@ const queryWrapper = async (text, params = []) => {
                 if (upperSql.includes('COUNT(')) {
                     return { rows: [{ total_deals: 2, won_amount: 0, pending_amount: 165000.00 }], rowCount: 1 };
                 }
-                if (upperSql.includes('TO_CHAR') || upperSql.includes('DATE_TRUNC') || upperSql.includes('MONTH(')) {
+                if (upperSql.includes('TO_CHAR') || upperSql.includes('DATE_TRUNC') || upperSql.includes('MONTH(') || upperSql.includes('DATE_FORMAT')) {
                     return { rows: [{ month: 'May', total: 0 }, { month: 'Jun', total: 0 }], rowCount: 2 };
                 }
                 return { rows: sampleDeals, rowCount: sampleDeals.length };

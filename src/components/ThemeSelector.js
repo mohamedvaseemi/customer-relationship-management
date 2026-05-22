@@ -5,7 +5,7 @@ import { FiCheck } from 'react-icons/fi';
 import '@/styles/ThemeSelector.css';
 
 const THEMES = [
-    { id: 'light', name: 'Professional Light', color: '#1e3a8a', type: 'light' },
+    { id: 'light', name: 'Professional Light', color: '#6d28d9', type: 'light' },
     { id: 'dark', name: 'Navy Dark', color: '#111827', type: 'dark' },
     { id: 'midnight', name: 'Midnight Pro', color: '#020617', type: 'dark' },
     { id: 'emerald', name: 'Forest Emerald', color: '#10b981', type: 'light' },

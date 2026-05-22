@@ -8,6 +8,8 @@ import {
 import { motion } from 'framer-motion';
 import '@/styles/Settings.css';
 
+import { useTheme } from '@/context/ThemeContext';
+
 const SETTINGS_GROUPS = [
     {
         id: 'general',
@@ -16,7 +18,8 @@ const SETTINGS_GROUPS = [
         items: [
             { id: 'personal', label: 'Personal Settings', path: '/settings/personal' },
             { id: 'users', label: 'Users & Control', path: '/users' },
-            { id: 'company', label: 'Company Details', path: '/settings/company' }
+            { id: 'company', label: 'Company Details', path: '/settings/company' },
+            { id: 'connection', label: 'Website Connection', path: '/settings/connection' }
         ]
     },
     {
@@ -25,7 +28,7 @@ const SETTINGS_GROUPS = [
         icon: FiLayers,
         items: [
             { id: 'modules', label: 'Modules and Fields', path: '/settings/modules' },
-            { id: 'appearance', label: 'Appearance & Themes', path: '/settings/appearance' },
+            { id: 'appearance', label: 'Appearance & Themes', path: '#appearance' },
             { id: 'home', label: 'Customize Home page', path: '/settings/home' },
             { id: 'templates', label: 'Templates', path: '/settings/templates' }
         ]
@@ -63,7 +66,7 @@ const SETTINGS_GROUPS = [
         title: 'Developer Hub',
         icon: FiCode,
         items: [
-            { id: 'api', label: 'APIs and SDKs', path: '/settings/api' },
+            { id: 'api-keys', label: 'API Keys', path: '/settings/api-keys' },
             { id: 'hooks', label: 'Webhooks', path: '/settings/webhooks' }
         ]
     }
@@ -71,6 +74,7 @@ const SETTINGS_GROUPS = [
 
 export default function Settings() {
     const router = useRouter();
+    const { setCustomizerOpen } = useTheme();
 
     return (
         <div className="settings-page">
@@ -85,7 +89,7 @@ export default function Settings() {
                 </div>
             </div>
 
-            <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+            <div className="settings-grid">
                 {SETTINGS_GROUPS.map((group, idx) => (
                     <motion.div
                         key={group.id}
@@ -94,22 +98,27 @@ export default function Settings() {
                         transition={{ delay: idx * 0.05 }}
                         className="settings-card card"
                     >
-                        <div className="group-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                            <div className="group-icon" style={{ padding: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--primary-color)' }}>
+                        <div className="group-header">
+                            <div className="group-icon">
                                 <group.icon size={20} />
                             </div>
-                            <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>{group.title}</h3>
+                            <h3>{group.title}</h3>
                         </div>
                         <div className="group-items">
                             {group.items.map(item => (
                                 <div
                                     key={item.id}
                                     className="settings-item"
-                                    onClick={() => router.push(item.path)}
-                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        if (item.id === 'appearance') {
+                                            setCustomizerOpen(true);
+                                        } else {
+                                            router.push(item.path);
+                                        }
+                                    }}
                                 >
-                                    <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{item.label}</span>
-                                    <FiChevronRight size={14} className="item-arrow" style={{ color: 'var(--text-muted)' }} />
+                                    <span>{item.label}</span>
+                                    <FiChevronRight size={14} className="item-arrow" />
                                 </div>
                             ))}
                         </div>
