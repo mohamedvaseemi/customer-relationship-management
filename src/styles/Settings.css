@@ -298,25 +298,23 @@
 }
 
 .btn-test:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+.item-arrow {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: var(--transition-base);
 }
 
-/* Sample data toggle panel */
-.sample-toggle-panel {
-    background: var(--bg-tertiary);
-    border: 1px dashed var(--border-color);
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
+.settings-item:hover .item-arrow {
+    opacity: 1;
+    transform: translateX(0);
 }
 
-.sample-toggle-info h4 {
-    font-size: 0.95rem;
-}
+@media (max-width: 768px) {
+    .settings-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
     .settings-search {
         max-width: 100%;
     }
