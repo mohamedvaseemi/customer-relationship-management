@@ -92,7 +92,7 @@ export default function RecycleBin() {
                                 <td style={{ padding: '12px 16px' }}><span className="status-badge-alt badge-active">Contacts</span></td>
                                 <td style={{ padding: '12px 16px', fontSize: '13px' }}>
                                     <div className="flex items-center gap-1" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-primary)' }}>
-                                        <FiClock size={12} /> {format(new Date(contact.updated_at), 'MMM d, yyyy h:mm a')}
+                                        <FiClock size={12} /> {format(new Date(contact.updated_at || contact.created_at || Date.now()), 'MMM d, yyyy h:mm a')}
                                     </div>
                                 </td>
                                 <td style={{ padding: '12px 16px', textAlign: 'right' }}>

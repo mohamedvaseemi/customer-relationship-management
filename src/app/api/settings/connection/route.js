@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
-import mysql from 'mysql2/promise';
 
 export async function GET(req) {
     try {

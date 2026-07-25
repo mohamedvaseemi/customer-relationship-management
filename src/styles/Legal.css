@@ -1,0 +1,113 @@
+.legal-page-wrapper {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    background-image: var(--app-bg-gradient);
+    color: var(--text-primary);
+    padding: 40px 20px;
+    font-family: var(--font-sans, sans-serif);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.legal-container {
+    width: 100%;
+    max-width: 850px;
+    margin: 0 auto;
+}
+
+.legal-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 24px;
+    transition: var(--transition-base);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.legal-back-link:hover {
+    color: var(--primary-hover);
+    transform: translateX(-4px);
+}
+
+.legal-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 48px;
+}
+
+@media (max-width: 768px) {
+    .legal-card {
+        padding: 24px;
+    }
+}
+
+.legal-header {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 32px;
+    margin-bottom: 32px;
+}
+
+.legal-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    line-height: 1.25;
+}
+
+.legal-meta {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.legal-body {
+    line-height: 1.7;
+    font-size: 15px;
+    color: var(--text-secondary);
+}
+
+.legal-section {
+    margin-bottom: 32px;
+}
+
+.legal-section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 0;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.legal-section p {
+    margin-bottom: 16px;
+}
+
+.legal-section ul {
+    margin-bottom: 16px;
+    padding-left: 20px;
+}
+
+.legal-section li {
+    margin-bottom: 8px;
+}
+
+.legal-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+}

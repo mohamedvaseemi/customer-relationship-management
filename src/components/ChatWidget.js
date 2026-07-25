@@ -61,12 +61,12 @@ const ChatWidget = () => {
                         {/* Header */}
                         <div className="chat-header">
                             <div className="chat-header-info">
-                                <FiZap size={18} />
+                                <FiZap size={18} aria-hidden="true" />
                                 <span>NexBot Assistant</span>
-                                <div className="chat-status-dot" title="Online" />
+                                <div className="chat-status-dot" title="Online" aria-label="Online" />
                             </div>
-                            <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
-                                <FiX size={16} />
+                            <button className="chat-close-btn" onClick={() => setIsOpen(false)} aria-label="Close chat window">
+                                <FiX size={16} aria-hidden="true" />
                             </button>
                         </div>
 
@@ -95,8 +95,8 @@ const ChatWidget = () => {
                                 onChange={e => setInput(e.target.value)}
                                 onKeyPress={handleKey}
                             />
-                            <button className="chat-send-btn" onClick={handleSend}>
-                                <FiSend size={16} />
+                            <button className="chat-send-btn" onClick={handleSend} aria-label="Send message">
+                                <FiSend size={16} aria-hidden="true" />
                             </button>
                         </div>
                     </motion.div>
@@ -104,19 +104,21 @@ const ChatWidget = () => {
             </AnimatePresence>
 
             {/* Floating Trigger Button */}
-            <motion.div
+            <motion.button
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.93 }}
                 className="chatbot-button"
                 onClick={() => setIsOpen(!isOpen)}
+                aria-label={isOpen ? 'Close NexBot chat' : 'Open NexBot chat assistant'}
+                aria-expanded={isOpen}
             >
                 <AnimatePresence mode="wait">
                     {isOpen
-                        ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}><FiX size={22} /></motion.span>
-                        : <motion.span key="msg" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}><FiMessageSquare size={22} /></motion.span>
+                        ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }} aria-hidden="true"><FiX size={22} /></motion.span>
+                        : <motion.span key="msg" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }} aria-hidden="true"><FiMessageSquare size={22} /></motion.span>
                     }
                 </AnimatePresence>
-            </motion.div>
+            </motion.button>
         </div>
     );
 };

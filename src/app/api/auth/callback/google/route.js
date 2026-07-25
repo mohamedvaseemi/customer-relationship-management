@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { pool } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
 export async function GET(req) {
+    await connection();
     try {
         const url = new URL(req.url);
         const code = url.searchParams.get('code');
@@ -76,7 +77,7 @@ export async function GET(req) {
             { expiresIn: '7d' }
         );
 
-        // Render success HTML that sets localStorage and redirects to /dashboard
+        // Render success HTML that sets localStorage & cookies, then redirects
         const html = `
         <!DOCTYPE html>
         <html>
@@ -85,6 +86,7 @@ export async function GET(req) {
           <script>
             try {
               localStorage.setItem('token', ${JSON.stringify(token)});
+              document.cookie = "token=" + ${JSON.stringify(token)} + "; path=/; max-age=604800; SameSite=Lax";
               localStorage.setItem('user', JSON.stringify(${JSON.stringify({
                 id: user.id,
                 name: user.name,
@@ -114,9 +116,16 @@ export async function GET(req) {
         </html>
         `;
 
-        return new NextResponse(html, {
+        const response = new NextResponse(html, {
             headers: { 'Content-Type': 'text/html' }
         });
+        response.cookies.set('token', token, {
+            path: '/',
+            maxAge: 604800,
+            sameSite: 'lax',
+            httpOnly: false
+        });
+        return response;
 
     } catch (error) {
         console.error('Google OAuth callback handler error:', error);

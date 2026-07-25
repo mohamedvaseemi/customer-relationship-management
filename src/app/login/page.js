@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiGrid } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
@@ -76,7 +77,6 @@ export default function Login() {
     const handleGoogleLogin = () => {
         setError('');
         const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-        console.log(clientId);
         if (!clientId || clientId === 'your_google_client_id.apps.googleusercontent.com') {
             setError('Google Sign-In client ID is not configured in .env file.');
             return;
@@ -101,8 +101,9 @@ export default function Login() {
                     className="auth-branding-panel"
                 >
                     <div className="brand-content">
-                        <div className="brand-logo-large">
-                            <FiGrid /> ModernCRM
+                        <div className="auth-logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '28px', fontWeight: 'bold' }}>
+                            <img src="/favicon.gif" alt="" style={{ width: 50, height: 50, borderRadius: 10 }} />
+                            <span>Kibon</span>
                         </div>
                         <h1 className="brand-headline">
                             Manage your pipeline with precision.
@@ -145,10 +146,11 @@ export default function Login() {
                             </AnimatePresence>
 
                             <div className="input-field">
-                                <label>Work Email</label>
+                                <label htmlFor="email">Work Email</label>
                                 <div className="input-wrapper">
                                     <FiMail />
                                     <input
+                                        id="email"
                                         type="email"
                                         name="email"
                                         className="input-styled"
@@ -162,12 +164,13 @@ export default function Login() {
 
                             <div className="input-field">
                                 <div className="flex justify-between">
-                                    <label>Password</label>
-                                    <a href="#" className="forgot-password">Forgot?</a>
+                                    <label htmlFor="password">Password</label>
+                                    <button type="button" className="forgot-password" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-color)' }}>Forgot password?</button>
                                 </div>
                                 <div className="input-wrapper">
                                     <FiLock />
                                     <input
+                                        id="password"
                                         type="password"
                                         name="password"
                                         className="input-styled"
@@ -203,7 +206,7 @@ export default function Login() {
                         </div>
 
                         <div className="auth-footer">
-                            New to ModernCRM?
+                            New to Kibon?
                             <button
                                 className="auth-link"
                                 onClick={() => router.push('/register')}
@@ -211,6 +214,14 @@ export default function Login() {
                             >
                                 Sign Up
                             </button>
+                        </div>
+
+                        <div className="auth-legal-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px' }}>
+                            <Link href="/terms" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Terms & Conditions</Link>
+                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                            <Link href="/refund-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Refund Policy</Link>
+                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                            <Link href="/contact" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Contact Us</Link>
                         </div>
                     </motion.div>
                 </div>

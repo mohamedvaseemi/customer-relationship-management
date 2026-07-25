@@ -1,19 +1,42 @@
 "use client";
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { authAPI } from '../api/api';
+import Cookies from 'js-cookie';
 
 const AuthContext = createContext(null);
+
+const getInitialToken = () => {
+    if (typeof window !== 'undefined') {
+        return Cookies.get('token') || null;
+    }
+    return null;
+};
+
+const getInitialSampleData = () => {
+    if (typeof window !== 'undefined') {
+        const saved = Cookies.get('sampleDataEnabled');
+        return saved === 'true';
+    }
+    return false;
+};
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState(null);
+    const [token, setToken] = useState(getInitialToken);
+    const [sampleDataEnabled, setSampleDataEnabled] = useState(getInitialSampleData);
 
-    useEffect(() => {
-        const savedToken = localStorage.getItem('token');
-        if (savedToken) {
-            setToken(savedToken);
-        } else {
+    const loadUser = useCallback(async () => {
+        try {
+            const response = await authAPI.getCurrentUser();
+            setUser(response.data.user);
+        } catch (error) {
+            // Silently handle
+            setToken(null);
+            if (typeof window !== 'undefined') {
+                Cookies.remove('token');
+            }
+        } finally {
             setLoading(false);
         }
     }, []);
@@ -24,79 +47,54 @@ export const AuthProvider = ({ children }) => {
         } else {
             setLoading(false);
         }
-    }, [token]);
-
-    const loadUser = async () => {
-        try {
-            const response = await authAPI.getCurrentUser();
-            setUser(response.data.user);
-        } catch (error) {
-            console.error('Failed to load user:', error);
-            setToken(null);
-            if (typeof window !== 'undefined') {
-                localStorage.removeItem('token');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [token, loadUser]);
 
     const login = async (credentials) => {
         const response = await authAPI.login(credentials);
-        const { token, user } = response.data;
+        const { token: newToken, user: newUser } = response.data;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('token', token);
+            Cookies.set('token', newToken, { expires: 7 });
         }
-        setToken(token);
-        setUser(user);
+        setToken(newToken);
+        setUser(newUser);
         return response.data;
     };
 
     const register = async (userData) => {
         const response = await authAPI.register(userData);
-        const { token, user } = response.data;
+        const { token: newToken, user: newUser } = response.data;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('token', token);
+            Cookies.set('token', newToken, { expires: 7 });
         }
-        setToken(token);
-        setUser(user);
+        setToken(newToken);
+        setUser(newUser);
         return response.data;
     };
 
     const loginWithGoogle = async (credential) => {
         const response = await authAPI.googleAuth(credential);
-        const { token, user } = response.data;
+        const { token: newToken, user: newUser } = response.data;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('token', token);
+            Cookies.set('token', newToken, { expires: 7 });
         }
-        setToken(token);
-        setUser(user);
+        setToken(newToken);
+        setUser(newUser);
         return response.data;
     };
 
     const logout = () => {
         if (typeof window !== 'undefined') {
-            localStorage.removeItem('token');
+            Cookies.remove('token');
         }
         setToken(null);
         setUser(null);
     };
 
-const [sampleDataEnabled, setSampleDataEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('sampleDataEnabled');
-        return saved === 'true';
-    }
-    return false;
-});
-
-// No need for a useEffect to set default true; sampleDataEnabled is initialized from storage.
-
     const toggleSampleData = () => {
         const newValue = !sampleDataEnabled;
         setSampleDataEnabled(newValue);
         if (typeof window !== 'undefined') {
-            localStorage.setItem('sampleDataEnabled', String(newValue));
+            Cookies.set('sampleDataEnabled', String(newValue), { expires: 365 });
             window.dispatchEvent(new Event('storage'));
         }
     };

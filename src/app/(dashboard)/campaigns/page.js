@@ -1,6 +1,8 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { FiSend, FiPieChart, FiUsers, FiActivity, FiMoreHorizontal } from 'react-icons/fi';
+import { useAuth } from '@/context/AuthContext';
+import FeatureComingSoon from '@/components/FeatureComingSoon';
 
 const mockCampaigns = [
     { id: 1, name: 'Q4 Enterprise Outreach', status: 'Active', sent: 1250, openRate: '42%', clickRate: '12%' },
@@ -9,6 +11,13 @@ const mockCampaigns = [
 ];
 
 export default function Campaigns() {
+    const { sampleDataEnabled } = useAuth();
+    const [showFeature, setShowFeature] = useState(false);
+
+    if (showFeature) return <FeatureComingSoon title="Email Campaigns" />;
+
+    const currentCampaigns = sampleDataEnabled ? mockCampaigns : [];
+
     return (
         <div className="page-container" style={{ padding: '0' }}>
             <div className="page-header flex justify-between items-center mb-6">
@@ -17,7 +26,7 @@ export default function Campaigns() {
                     <p className="text-muted">Create and track your automated email marketing sequences.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn btn-primary"><FiSend /> New Campaign</button>
+                    <button className="btn btn-primary" onClick={() => setShowFeature(true)}><FiSend /> New Campaign</button>
                 </div>
             </div>
 
@@ -28,7 +37,7 @@ export default function Campaigns() {
                     </div>
                     <div>
                         <div className="text-muted">Total Sent</div>
-                        <div className="font-bold text-xl">12,450</div>
+                        <div className="font-bold text-xl">{sampleDataEnabled ? '12,450' : '0'}</div>
                     </div>
                 </div>
                 <div className="card flex items-center gap-4 p-4">
@@ -37,7 +46,7 @@ export default function Campaigns() {
                     </div>
                     <div>
                         <div className="text-muted">Avg Open Rate</div>
-                        <div className="font-bold text-xl">34.2%</div>
+                        <div className="font-bold text-xl">{sampleDataEnabled ? '34.2%' : '0%'}</div>
                     </div>
                 </div>
                 <div className="card flex items-center gap-4 p-4">
@@ -46,7 +55,7 @@ export default function Campaigns() {
                     </div>
                     <div>
                         <div className="text-muted">Avg Click Rate</div>
-                        <div className="font-bold text-xl">8.5%</div>
+                        <div className="font-bold text-xl">{sampleDataEnabled ? '8.5%' : '0%'}</div>
                     </div>
                 </div>
             </div>
@@ -68,7 +77,7 @@ export default function Campaigns() {
                             </tr>
                         </thead>
                         <tbody>
-                            {mockCampaigns.map(camp => (
+                            {currentCampaigns.map(camp => (
                                 <tr key={camp.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                     <td style={{ padding: '1rem', fontWeight: 500, color: 'var(--text-primary)' }}>{camp.name}</td>
                                     <td style={{ padding: '1rem' }}>

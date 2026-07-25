@@ -22,23 +22,66 @@
     flex-wrap: wrap;
 }
 
-.view-selector {
+.view-selector-desktop {
+    display: flex;
     background: var(--bg-secondary);
-    padding: 0.5rem 1rem;
+    padding: 0.25rem;
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
+    gap: 0.25rem;
 }
 
-.select-naked {
+.view-btn {
     background: transparent;
     border: none;
-    font-size: 1.1rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.view-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.view-btn.active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.view-selector-mobile {
+    display: none;
+    width: 100%;
+}
+
+.select-full-style {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg-secondary) url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 1rem center;
+    background-size: 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
     cursor: pointer;
     outline: none;
-    padding-right: 1.5rem;
+    padding: 0.85rem 2.5rem 0.85rem 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.select-full-style option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    padding: 0.5rem;
 }
 
 /* Welcome Banner */
@@ -49,7 +92,7 @@
     align-items: center;
     color: white;
     border: none !important;
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    background: var(--primary-gradient) !important;
     box-shadow: var(--shadow-premium);
     position: relative;
     overflow: hidden;
@@ -482,6 +525,44 @@
     .dashboard-card {
         grid-column: span 1;
     }
+
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dashboard-widget.stats-widget {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-welcome {
+        padding: 1.5rem !important;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.25rem;
+    }
+
+    .welcome-actions {
+        width: 100%;
+    }
+
+    .welcome-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .stats-mini-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .view-selector-desktop {
+        display: none !important;
+    }
+
+    .view-selector-mobile {
+        display: block !important;
+    }
 }
 
 @media (max-width: 640px) {
@@ -506,6 +587,22 @@
     }
 
     .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-widget.stats-widget {
+        grid-column: span 1;
+    }
+
+    .copilot-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-mini-grid {
         grid-template-columns: 1fr;
     }
 }

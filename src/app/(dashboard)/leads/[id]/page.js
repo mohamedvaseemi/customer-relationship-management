@@ -42,7 +42,7 @@ export default function LeadDetails({ params }) {
 
     const handleTriggerAutomation = async (templateId) => {
         try {
-            await automationAPI.trigger({ lead_id: id, template_id: templateId });
+            await automationAPI.triggerAutomation({ lead_id: id, template_id: templateId });
             alert('Automation sequence started!');
             fetchData(); // Refresh timeline
         } catch (error) {

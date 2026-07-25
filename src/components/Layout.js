@@ -5,7 +5,7 @@ import {
     FiHome, FiUsers, FiTrendingUp, FiCalendar, FiLogOut, FiMenu, FiX,
     FiSun, FiMoon, FiSearch, FiBell, FiSettings, FiGrid, FiBarChart2,
     FiArrowRight, FiTarget, FiBriefcase, FiDollarSign, FiPhone, FiSend, FiFileText,
-    FiZap, FiHeadphones, FiMessageSquare
+    FiZap, FiHeadphones, FiMessageSquare, FiActivity
 } from 'react-icons/fi';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,11 +14,19 @@ import { useTheme } from '@/context/ThemeContext';
 import ThemeSelector from './ThemeSelector';
 import ChatWidget from './ChatWidget';
 import FloatingCustomizer from './FloatingCustomizer';
+import Cookies from 'js-cookie';
 import '@/styles/Layout.css';
 import '@/styles/FloatingCustomizer.css';
 
+const getInitialSidebar = () => {
+    if (typeof window !== 'undefined') {
+        return window.innerWidth >= 1024;
+    }
+    return true;
+};
+
 const Layout = ({ children }) => {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(getInitialSidebar);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [themeOpen, setThemeOpen] = useState(false);
@@ -34,6 +42,21 @@ const Layout = ({ children }) => {
     const router = useRouter();
     const { user, logout, sampleDataEnabled, toggleSampleData } = useAuth();
     const { theme, setCustomizerOpen } = useTheme();
+
+    // Close sidebar on navigation on smaller screens
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 1024) {
+                setSidebarOpen(false);
+            }
+        };
+        // Only close on route change for small screens
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [pathname]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -61,7 +84,7 @@ const Layout = ({ children }) => {
         const delayDebounceFn = setTimeout(async () => {
             setSearching(true);
             try {
-                const token = localStorage.getItem('token');
+                const token = Cookies.get('token');
                 const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -70,7 +93,7 @@ const Layout = ({ children }) => {
                     setSearchResults(data.results);
                 }
             } catch (err) {
-                console.error('Search error:', err);
+                // Silently handle
             } finally {
                 setSearching(false);
             }
@@ -82,7 +105,7 @@ const Layout = ({ children }) => {
     // Fetch Notifications
     const fetchNotifications = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = Cookies.get('token');
             const res = await fetch('/api/notifications', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -92,7 +115,7 @@ const Layout = ({ children }) => {
                 setUnreadCount(data.notifications.filter(n => !n.is_read).length);
             }
         } catch (err) {
-            console.error('Fetch notifications error:', err);
+            // Silently handle
         }
     };
 
@@ -102,12 +125,13 @@ const Layout = ({ children }) => {
             const interval = setInterval(fetchNotifications, 20000);
             return () => clearInterval(interval);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
     const handleMarkAllRead = async (e) => {
         if (e) e.stopPropagation();
         try {
-            const token = localStorage.getItem('token');
+            const token = Cookies.get('token');
             await fetch('/api/notifications', {
                 method: 'POST',
                 headers: {
@@ -118,13 +142,13 @@ const Layout = ({ children }) => {
             });
             fetchNotifications();
         } catch (err) {
-            console.error('Mark all read error:', err);
+            // Silently handle
         }
     };
 
     const handleMarkRead = async (id) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = Cookies.get('token');
             await fetch('/api/notifications', {
                 method: 'POST',
                 headers: {
@@ -135,7 +159,7 @@ const Layout = ({ children }) => {
             });
             fetchNotifications();
         } catch (err) {
-            console.error('Mark read error:', err);
+            // Silently handle
         }
     };
 
@@ -178,6 +202,7 @@ const Layout = ({ children }) => {
     const adminItems = [];
     if (user?.role === 'admin') {
         adminItems.push({ path: '/users', icon: FiUsers, label: 'User Management' });
+        adminItems.push({ path: '/monitoring', icon: FiActivity, label: 'App Monitoring' });
     }
     adminItems.push({ path: '/settings', icon: FiSettings, label: 'System Settings' });
 
@@ -185,7 +210,6 @@ const Layout = ({ children }) => {
         title: 'Administration',
         items: adminItems
     });
-
 
     const handleLogout = () => {
         logout();
@@ -282,7 +306,7 @@ const Layout = ({ children }) => {
                                         </div>
                                     )
                                 ) : (
-                                    <div className="search-hint">Type to start searching across ModernCRM...</div>
+                                    <div className="search-hint">Type to start searching across Kibon...</div>
                                 )}
                             </div>
                         </motion.div>
@@ -290,12 +314,25 @@ const Layout = ({ children }) => {
                 )}
             </AnimatePresence>
 
+            {/* Sidebar Backdrop Overlay for Mobile/Tablet */}
+            <AnimatePresence>
+                {sidebarOpen && typeof window !== 'undefined' && window.innerWidth < 1024 && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="sidebar-overlay"
+                        onClick={() => setSidebarOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Sidebar */}
             <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
                 <div className="sidebar-header">
                     <div className="logo" onClick={() => router.push('/dashboard')}>
-                        <div className="logo-icon gradient-primary">
-                            <FiGrid size={20} />
+                        <div className="logo-icon">
+                            <img src="/favicon.gif" alt="Kibon" style={{width: 32, height: 32, borderRadius: 6}} />
                         </div>
                         <AnimatePresence>
                             {sidebarOpen && (
@@ -305,7 +342,7 @@ const Layout = ({ children }) => {
                                     exit={{ opacity: 0, x: -10 }}
                                     className="logo-text"
                                 >
-                                    ModernCRM
+                                    Kibon
                                 </motion.span>
                             )}
                         </AnimatePresence>
@@ -343,7 +380,7 @@ const Layout = ({ children }) => {
             <div className="main-wrapper">
                 <header className="header glass">
                     <div className="header-left">
-                        <button className="icon-btn sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                        <button className="icon-btn sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}>
                             {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
                         </button>
 
@@ -378,6 +415,8 @@ const Layout = ({ children }) => {
                                 marginRight: '8px'
                             }}
                             title="Toggle sample dataset for demonstration"
+                            aria-label={`Sample data is currently ${sampleDataEnabled ? 'on' : 'off'}. Click to toggle.`}
+                            aria-pressed={sampleDataEnabled}
                         >
                             <span style={{
                                 width: '8px',
@@ -390,12 +429,12 @@ const Layout = ({ children }) => {
                             <span>Sample Data: <b>{sampleDataEnabled ? 'ON' : 'OFF'}</b></span>
                         </button>
 
-                        <button className="icon-btn" onClick={() => setCustomizerOpen(true)} title="Switch Theme">
+                        <button className="icon-btn" onClick={() => setCustomizerOpen(true)} title="Switch Theme" aria-label="Open appearance and theme customizer">
                             {theme?.includes('dark') || theme === 'midnight' ? <FiMoon size={20} /> : <FiSun size={20} />}
                         </button>
 
                         <div className="dropdown-container">
-                            <button className="icon-btn relative" onClick={(e) => { e.stopPropagation(); setNotificationsOpen(!notificationsOpen); }}>
+                            <button className="icon-btn relative" onClick={(e) => { e.stopPropagation(); setNotificationsOpen(!notificationsOpen); }} aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} aria-expanded={notificationsOpen}>
                                 <FiBell size={20} />
                                 {unreadCount > 0 && <span className="notification-dot"></span>}
                             </button>

@@ -1,13 +1,20 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { FiPlus, FiZap, FiSettings, FiActivity, FiClock, FiMail } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
+import { FiPlus, FiZap, FiSettings, FiActivity, FiClock, FiMail, FiCheckCircle } from 'react-icons/fi';
 import { automationAPI } from '@/api/api';
 import { motion } from 'framer-motion';
 import '@/styles/Automation.css';
 
 export default function Automation() {
+    const router = useRouter();
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // New state for dynamic playground
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [tasks, setTasks] = useState([]);
+    const [loadingTasks, setLoadingTasks] = useState(false);
 
     useEffect(() => {
         fetchTemplates();
@@ -29,6 +36,38 @@ export default function Automation() {
         }
     };
 
+    // New function to fetch tasks when a template is clicked
+    const handleSelectTemplate = async (template) => {
+        setSelectedTemplate(template);
+        setLoadingTasks(true);
+        setTasks([]); // Clear previous tasks while loading
+        
+        try {
+            const response = await automationAPI.getTemplateTasks(template.id);
+            setTasks(response.data.tasks || []);
+        } catch (error) {
+            console.error('Error fetching tasks:', error);
+            // Fallback mock tasks based on your database schema
+            setTasks([
+                { id: 101, step_order: 1, action_type: 'email', task_subject: 'Welcome Email', delay_days: 0 },
+                { id: 102, step_order: 2, action_type: 'delay', task_subject: 'Wait period', delay_days: 2 },
+                { id: 103, step_order: 3, action_type: 'create_task', task_subject: 'Call lead to check interest', delay_days: 0 }
+            ]);
+        } finally {
+            setLoadingTasks(false);
+        }
+    };
+
+    // Helper to render the right icon based on the action_type from your DB
+    const getTaskIcon = (actionType) => {
+        switch (actionType) {
+            case 'email': return <FiMail className="text-info" />;
+            case 'delay': return <FiClock className="text-warning" />;
+            case 'create_task': return <FiActivity className="text-success" />;
+            default: return <FiCheckCircle className="text-primary" />;
+        }
+    };
+
     return (
         <div className="automation-container">
             <header className="flex justify-between items-center mb-8">
@@ -36,7 +75,7 @@ export default function Automation() {
                     <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>Workflow Automation</h1>
                     <p className="text-muted" style={{ color: 'var(--text-secondary)' }}>Set up automated sequences to handle your busy work.</p>
                 </div>
-                <button className="btn btn-primary"><FiPlus /> Create Workflow</button>
+                <button className="btn btn-primary" onClick={() => router.push('/settings/workflows')}><FiPlus /> Create Workflow</button>
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
@@ -44,8 +83,16 @@ export default function Automation() {
                     <motion.div
                         key={template.id}
                         whileHover={{ y: -5 }}
-                        className="card template-card flex flex-col justify-between"
-                        style={{ minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                        // Add click handler and dynamic styling if selected
+                        onClick={() => handleSelectTemplate(template)}
+                        className={`card template-card flex flex-col justify-between cursor-pointer ${selectedTemplate?.id === template.id ? 'ring-2 ring-primary' : ''}`}
+                        style={{ 
+                            minHeight: '180px', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            justifyContent: 'space-between',
+                            border: selectedTemplate?.id === template.id ? '2px solid var(--primary-color)' : 'none'
+                        }}
                     >
                         <div>
                             <div className="flex justify-between items-start mb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -58,7 +105,8 @@ export default function Automation() {
                             <p className="text-sm text-muted mb-4" style={{ color: 'var(--text-secondary)' }}>{template.description}</p>
                         </div>
                         <div className="pt-4 border-t flex justify-between items-center" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span className="text-xs font-semibold text-primary">3 STEPS</span>
+                            {/* You could optionally update this to show the actual step count if you fetch it beforehand */}
+                            <span className="text-xs font-semibold text-primary">VIEW STEPS</span>
                             <div className="flex gap-2">
                                 <button className="action-btn" style={{ padding: '4px' }}><FiSettings size={16} /></button>
                                 <button className="action-btn" style={{ padding: '4px' }}><FiActivity size={16} /></button>
@@ -69,25 +117,37 @@ export default function Automation() {
             </div>
 
             <div className="mt-12" style={{ marginTop: '40px' }}>
-                <h2 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Workflow Playground</h2>
+                <h2 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
+                    {selectedTemplate ? `Workflow Playground: ${selectedTemplate.name}` : 'Workflow Playground (Select a template)'}
+                </h2>
+                
                 <div className="card bg-tertiary" style={{ background: 'var(--bg-tertiary)', padding: '20px' }}>
-                    <div className="task-sequence" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-                        <div className="task-step" style={{ minWidth: '200px', flex: 1 }}>
-                            <div className="step-badge">1</div>
-                            <h4 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><FiMail className="text-info" /> Welcome Email</h4>
-                            <p className="text-xs text-muted" style={{ color: 'var(--text-secondary)' }}>Sent immediately when trigger fires.</p>
+                    {loadingTasks ? (
+                        <p className="text-center text-muted">Loading workflow steps...</p>
+                    ) : tasks.length > 0 ? (
+                        <div className="task-sequence" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
+                            {tasks.map((task, index) => (
+                                <div key={task.id} className="task-step" style={{ minWidth: '200px', flex: 1 }}>
+                                    <div className="step-badge">{task.step_order || index + 1}</div>
+                                    <h4 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'capitalize' }}>
+                                        {getTaskIcon(task.action_type)} {task.action_type.replace('_', ' ')}
+                                    </h4>
+                                    <p className="text-xs text-muted mt-2" style={{ color: 'var(--text-secondary)' }}>
+                                        {task.task_subject}
+                                    </p>
+                                    {task.delay_days > 0 && (
+                                        <p className="text-xs mt-1 text-warning">
+                                            Delay: {task.delay_days} days
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
                         </div>
-                        <div className="task-step" style={{ minWidth: '200px', flex: 1 }}>
-                            <div className="step-badge">2</div>
-                            <h4 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><FiClock className="text-warning" /> 2-Day Delay</h4>
-                            <p className="text-xs text-muted" style={{ color: 'var(--text-secondary)' }}>Waiting period before next action.</p>
-                        </div>
-                        <div className="task-step" style={{ minWidth: '200px', flex: 1 }}>
-                            <div className="step-badge">3</div>
-                            <h4 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><FiActivity className="text-success" /> Follow-up Task</h4>
-                            <p className="text-xs text-muted" style={{ color: 'var(--text-secondary)' }}>Creates a task for: 'Call lead to check interest'</p>
-                        </div>
-                    </div>
+                    ) : (
+                        <p className="text-center text-muted">
+                            {selectedTemplate ? 'No tasks found for this template.' : 'Click a template above to view its sequence.'}
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

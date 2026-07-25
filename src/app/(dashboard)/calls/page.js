@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiPhoneCall, FiVideo, FiMic, FiPhoneIncoming, FiPhoneMissed, FiPhoneForwarded } from 'react-icons/fi';
+import { useAuth } from '@/context/AuthContext';
+import FeatureComingSoon from '@/components/FeatureComingSoon';
 
 const mockCalls = [
     { id: 1, type: 'incoming', contact: 'Sarah Jenkins', company: 'TechFlow Inc', duration: '15:24', time: '10:30 AM', status: 'completed' },
@@ -10,6 +12,13 @@ const mockCalls = [
 ];
 
 export default function Calls() {
+    const { sampleDataEnabled } = useAuth();
+    const [showFeature, setShowFeature] = useState(false);
+
+    if (showFeature) return <FeatureComingSoon title="Telephony Services" />;
+
+    const currentCalls = sampleDataEnabled ? mockCalls : [];
+
     return (
         <div className="page-container" style={{ padding: '0' }}>
             <div className="page-header flex justify-between items-center mb-6">
@@ -18,23 +27,23 @@ export default function Calls() {
                     <p className="text-muted">Manage your VoIP communications and call logs.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="btn btn-secondary"><FiMic /> Voicemail</button>
-                    <button className="btn btn-primary"><FiPhoneCall /> Make a Call</button>
+                    <button className="btn btn-secondary" onClick={() => setShowFeature(true)}><FiMic /> Voicemail</button>
+                    <button className="btn btn-primary" onClick={() => setShowFeature(true)}><FiPhoneCall /> Make a Call</button>
                 </div>
             </div>
 
             <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                 <div className="card text-center p-6">
                     <div className="text-muted mb-2">Total Calls Today</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--primary-color)' }}>24</div>
+                    <div className="text-3xl font-bold" style={{ color: 'var(--primary-color)' }}>{sampleDataEnabled ? '24' : '0'}</div>
                 </div>
                 <div className="card text-center p-6">
                     <div className="text-muted mb-2">Average Duration</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--success)' }}>04:15</div>
+                    <div className="text-3xl font-bold" style={{ color: 'var(--success)' }}>{sampleDataEnabled ? '04:15' : '00:00'}</div>
                 </div>
                 <div className="card text-center p-6">
                     <div className="text-muted mb-2">Missed Calls</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--danger)' }}>3</div>
+                    <div className="text-3xl font-bold" style={{ color: 'var(--danger)' }}>{sampleDataEnabled ? '3' : '0'}</div>
                 </div>
             </div>
 
@@ -55,7 +64,7 @@ export default function Calls() {
                             </tr>
                         </thead>
                         <tbody>
-                            {mockCalls.map(call => (
+                            {currentCalls.map(call => (
                                 <tr key={call.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                     <td style={{ padding: '1rem' }}>
                                         {call.type === 'incoming' && <FiPhoneIncoming style={{ color: 'var(--success)' }} />}

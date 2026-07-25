@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Cookies from 'js-cookie';
 
 const API_BASE_URL = '/api';
 
@@ -13,14 +14,14 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         if (typeof window !== 'undefined') {
-            const token = localStorage.getItem('token');
+            const token = Cookies.get('token');
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
-            const sampleData = localStorage.getItem('sampleDataEnabled');
+            const sampleData = Cookies.get('sampleDataEnabled');
             if (sampleData === 'true') {
                 config.headers['x-sample-data'] = 'true';
-            } else if (sampleData === 'false') {
+            } else {
                 config.headers['x-sample-data'] = 'false';
             }
         }
@@ -36,7 +37,7 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401 && typeof window !== 'undefined') {
-            localStorage.removeItem('token');
+            Cookies.remove('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
         }
@@ -150,8 +151,20 @@ export const intelligenceAPI = {
 // Automation API
 export const automationAPI = {
     getTemplates: () => api.get('/automation/templates'),
+    // Add this new method to fetch tasks for a specific template
     getTemplateTasks: (templateId) => api.get(`/automation/templates/${templateId}/tasks`),
-    trigger: (data) => api.post('/automation/trigger', data)
+    triggerAutomation: (data) => api.post('/automation/trigger', data)
+};
+
+// Documents API
+export const documentsAPI = {
+    getAll: (params) => api.get('/documents', { params }),
+    upload: (formData) => api.post('/documents', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    }),
+    delete: (id) => api.delete(`/documents/${id}`)
 };
 
 export default api;

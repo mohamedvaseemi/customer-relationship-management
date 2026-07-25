@@ -1,18 +1,18 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const ThemeContext = createContext();
 
-export const ThemeProvider = ({ children }) => {
-    const [theme, setTheme] = useState('light');
-    const [customizerOpen, setCustomizerOpen] = useState(false);
+const getInitialTheme = () => {
+    if (typeof window !== 'undefined') {
+        return localStorage.getItem('theme') || 'light';
+    }
+    return 'light';
+};
 
-    useEffect(() => {
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            setTheme(savedTheme);
-        }
-    }, []);
+export const ThemeProvider = ({ children }) => {
+    const [theme, setTheme] = useState(getInitialTheme);
+    const [customizerOpen, setCustomizerOpen] = useState(false);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);

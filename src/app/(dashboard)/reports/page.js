@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     FiBarChart2, FiPieChart, FiTrendingUp, FiActivity,
@@ -9,6 +9,8 @@ import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
+import { useAuth } from '@/context/AuthContext';
+import FeatureComingSoon from '@/components/FeatureComingSoon';
 import '@/styles/Reports.css';
 
 const revenueData = [
@@ -54,6 +56,16 @@ const tooltipStyle = {
 };
 
 export default function Reports() {
+    const { sampleDataEnabled } = useAuth();
+    const [showFeature, setShowFeature] = useState(false);
+
+    if (showFeature) return <FeatureComingSoon title="Export Report" />;
+
+    const currentRevenueData = sampleDataEnabled ? revenueData : [];
+    const currentPipelineData = sampleDataEnabled ? pipelineData : [];
+    const currentConversionData = sampleDataEnabled ? conversionData : [];
+    const currentKpiCards = sampleDataEnabled ? kpiCards : kpiCards.map(k => ({ ...k, value: k.value.includes('%') ? '0%' : k.value.includes('$') ? '$0' : '0' }));
+
     return (
         <div className="reports-page">
             {/* Header */}
@@ -66,7 +78,7 @@ export default function Reports() {
                     <button className="btn btn-secondary">
                         <FiCalendar /> Last 6 Months
                     </button>
-                    <button className="btn btn-primary">
+                    <button className="btn btn-primary" onClick={() => setShowFeature(true)}>
                         <FiDownload /> Export Report
                     </button>
                 </div>
@@ -74,7 +86,7 @@ export default function Reports() {
 
             {/* KPI Cards */}
             <div className="kpi-grid">
-                {kpiCards.map((kpi, i) => (
+                {currentKpiCards.map((kpi, i) => (
                     <motion.div
                         key={i}
                         initial={{ opacity: 0, y: 12 }}
@@ -107,7 +119,7 @@ export default function Reports() {
                     </div>
                     <div className="chart-body">
                         <ResponsiveContainer width="100%" height={260}>
-                            <AreaChart data={revenueData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                            <AreaChart data={currentRevenueData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
@@ -137,8 +149,8 @@ export default function Reports() {
                     <div className="chart-body">
                         <ResponsiveContainer width="100%" height={260}>
                             <PieChart>
-                                <Pie data={pipelineData} cx="50%" cy="45%" innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value">
-                                    {pipelineData.map((entry, idx) => (
+                                <Pie data={currentPipelineData} cx="50%" cy="45%" innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value">
+                                    {currentPipelineData.map((entry, idx) => (
                                         <Cell key={idx} fill={entry.color} />
                                     ))}
                                 </Pie>
@@ -159,7 +171,7 @@ export default function Reports() {
                     </div>
                     <div className="chart-body">
                         <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={conversionData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                            <BarChart data={currentConversionData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
                                 <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} unit="%" />
@@ -178,7 +190,7 @@ export default function Reports() {
                         </div>
                         <h3>Full Report Pack</h3>
                         <p>Generate a detailed PDF/CSV report covering revenue, lead funnel, support SLAs, and team performance.</p>
-                        <button className="btn btn-primary mt-4">
+                        <button className="btn btn-primary mt-4" onClick={() => setShowFeature(true)}>
                             <FiDownload /> Download CSV Summary
                         </button>
                     </div>

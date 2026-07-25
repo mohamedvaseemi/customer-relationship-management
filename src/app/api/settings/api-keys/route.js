@@ -31,7 +31,7 @@ export async function POST(req) {
     const keyHash = hashKey(rawKey);
     const expiresAt = expires_in_days ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000) : null;
     await pool.query(
-        `INSERT INTO api_keys (name, key_hash, scopes, expires_at) VALUES (?, ?, ?, ?)`,
+        `INSERT INTO api_keys (name, key_hash, scopes, expires_at) VALUES ($1, $2, $3, $4)`,
         [name, keyHash, JSON.stringify(scopes), expiresAt]
     );
     return NextResponse.json({ rawKey, name, scopes, expiresAt }, { status: 201 });

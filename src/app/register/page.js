@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiArrowLeft, FiGrid, FiDatabase, FiCheckCircle, FiAlertCircle, FiActivity, FiChevronDown, FiCheck, FiSearch, FiRefreshCw, FiGlobe, FiBriefcase, FiUsers, FiCopy, FiEye, FiEyeOff } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import '@/styles/Auth.css';
 
 
@@ -54,7 +56,6 @@ export default function Register() {
 
     useEffect(() => {
         const cleanClientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-        console.log("Client Id in Register: ", cleanClientId);
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             const isGoogleOnboarding = params.get('google') === 'true';
@@ -73,7 +74,7 @@ export default function Register() {
                 } else if (errorType === 'invalid_google_payload') {
                     userFriendlyError = 'Could not verify your identity with Google.';
                 } else if (errorType === 'localstorage_failed') {
-                    userFriendlyError = 'Failed to store your authentication session locally. Please enable local storage.';
+                    userFriendlyError = 'Failed to store your authentication session. Please enable cookies.';
                 } else if (errorType === 'access_denied') {
                     userFriendlyError = 'Access was denied. You cancelled Google Sign-In.';
                 } else {
@@ -104,7 +105,6 @@ export default function Register() {
     const handleGoogleLogin = () => {
         setError('');
         const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-        console.log("Client Id in Register: ", clientId);
         if (!clientId || clientId === 'your_google_client_id.apps.googleusercontent.com') {
             setError('Google Sign-In client ID is not configured in .env file.');
             return;
@@ -204,8 +204,12 @@ export default function Register() {
 
             if (isGoogleOnboarding) {
                 // Since user already exists from Google SSO, we save crm_settings manually
-                const token = localStorage.getItem('token');
-                const headers = { Authorization: `Bearer ${token}` };
+                let token = Cookies.get('token');
+                if (!token && typeof window !== 'undefined') {
+                    token = localStorage.getItem('token');
+                    if (token) Cookies.set('token', token, { expires: 7 });
+                }
+                const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
                 // 1. Save Company Details
                 const employeeCountMap = {
@@ -243,7 +247,7 @@ export default function Register() {
             }
             
             if (typeof window !== 'undefined') {
-                localStorage.setItem('sampleDataEnabled', skipConnection ? 'true' : 'false');
+                Cookies.set('sampleDataEnabled', skipConnection ? 'true' : 'false', { expires: 365 });
                 window.dispatchEvent(new Event('storage'));
             }
             router.push('/dashboard');
@@ -265,8 +269,9 @@ export default function Register() {
                     className="auth-branding-panel"
                 >
                     <div className="brand-content">
-                        <div className="brand-logo-large">
-                            <FiGrid /> ModernCRM
+                        <div className="auth-logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '28px', fontWeight: 'bold' }}>
+                            <img src="/favicon.gif" alt="Kibon Logo" style={{ width: 48, height: 48, borderRadius: 8 }} />
+                            <span>Kibon</span>
                         </div>
                         <h1 className="brand-headline">
                             Manage your pipeline with precision.
@@ -308,10 +313,11 @@ export default function Register() {
                             {step === 1 && (
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
                                     <div className="input-field">
-                                        <label>Full Name</label>
+                                        <label htmlFor="name">Full Name</label>
                                         <div className="input-wrapper">
                                             <FiUser />
                                             <input
+                                                id="name"
                                                 type="text"
                                                 name="name"
                                                 className="input-styled"
@@ -324,10 +330,11 @@ export default function Register() {
                                     </div>
 
                                     <div className="input-field">
-                                        <label>Work Email</label>
+                                        <label htmlFor="email">Work Email</label>
                                         <div className="input-wrapper">
                                             <FiMail />
                                             <input
+                                                id="email"
                                                 type="email"
                                                 name="email"
                                                 className="input-styled"
@@ -340,10 +347,11 @@ export default function Register() {
                                     </div>
 
                                     <div className="input-field">
-                                        <label>Password</label>
+                                        <label htmlFor="password">Password</label>
                                         <div className="input-wrapper">
                                             <FiLock />
                                             <input
+                                                id="password"
                                                 type="password"
                                                 name="password"
                                                 className="input-styled"
@@ -366,10 +374,11 @@ export default function Register() {
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
                                     <div className="flex flex-col gap-4">
                                         <div className="input-field">
-                                            <label>Company Name *</label>
+                                            <label htmlFor="companyName">Company Name *</label>
                                             <div className="input-wrapper">
                                                 <FiGrid />
                                                 <input
+                                                    id="companyName"
                                                     type="text"
                                                     name="companyName"
                                                     className="input-styled"
@@ -382,10 +391,11 @@ export default function Register() {
                                         </div>
 
                                         <div className="input-field">
-                                            <label>Website URL</label>
+                                            <label htmlFor="website">Website URL</label>
                                             <div className="input-wrapper">
                                                 <FiGlobe />
                                                 <input
+                                                    id="website"
                                                     type="url"
                                                     name="website"
                                                     className="input-styled"
@@ -397,10 +407,11 @@ export default function Register() {
                                         </div>
 
                                         <div className="input-field">
-                                            <label>Industry</label>
+                                            <label htmlFor="industry">Industry</label>
                                             <div className="input-wrapper">
                                                 <FiBriefcase />
                                                 <select
+                                                    id="industry"
                                                     name="industry"
                                                     className="input-styled"
                                                     value={businessDetails.industry}
@@ -421,10 +432,11 @@ export default function Register() {
                                         </div>
 
                                         <div className="input-field">
-                                            <label>Employee Count</label>
+                                            <label htmlFor="employeeCount">Employee Count</label>
                                             <div className="input-wrapper">
                                                 <FiUsers />
                                                 <select
+                                                    id="employeeCount"
                                                     name="employeeCount"
                                                     className="input-styled"
                                                     value={businessDetails.employeeCount}
@@ -461,10 +473,11 @@ export default function Register() {
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                                     <div className="flex flex-col gap-4 mb-4">
                                         <div className="input-field">
-                                            <label>Backend URL</label>
+                                            <label htmlFor="backend_url">Backend URL</label>
                                             <div className="input-wrapper">
                                                 <FiDatabase />
                                                 <input
+                                                    id="backend_url"
                                                     type="text"
                                                     name="backend_url"
                                                     className="input-styled"
@@ -476,10 +489,11 @@ export default function Register() {
                                         </div>
 
                                         <div className="input-field">
-                                            <label>API Key</label>
+                                            <label htmlFor="api_key">API Key</label>
                                             <div className="input-wrapper">
                                                 <FiLock />
                                                 <input
+                                                    id="api_key"
                                                     type={showApiKey ? "text" : "password"}
                                                     name="api_key"
                                                     className="input-styled"
@@ -630,6 +644,14 @@ export default function Register() {
                             >
                                 Sign In
                             </button>
+                        </div>
+
+                        <div className="auth-legal-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px' }}>
+                            <Link href="/terms" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Terms & Conditions</Link>
+                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                            <Link href="/refund-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Refund Policy</Link>
+                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                            <Link href="/contact" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Contact Us</Link>
                         </div>
                     </motion.div>
                 </div>
