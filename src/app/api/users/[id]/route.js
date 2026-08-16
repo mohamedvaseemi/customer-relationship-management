@@ -1,35 +1,42 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { pool } from '@/lib/db';
-import { verifyAuth, adminOnly } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth'; // ❌ Removed adminOnly
 
 // PUT update user
 export async function PUT(req, { params }) {
     try {
         const decoded = verifyAuth(req);
         if (!decoded) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized access.' }, { status: 401 });
         }
 
-        const { id } = await params;
+        const { id } = params;
+        
+        // ✅ Direct inline admin check
+        if (decoded.role !== 'admin' && String(decoded.id) !== String(id)) {
+            return NextResponse.json({ error: 'Access denied.' }, { status: 403 });
+        }
+
         const body = await req.json();
-        const { name, email, role, password } = body;
+        const { name, email, password, phone, role } = body;
 
-        let updateFields = ['name = $1', 'email = $2', 'role = $3'];
-        let updateParams = [name, email, role];
-        let nextParamIndex = 4;
+        let finalRole = role;
+        if (decoded.role !== 'admin') {
+            finalRole = decoded.role; // Prevent non-admins from upgrading their role
+        }
 
+        let query, values;
         if (password) {
             const hashedPassword = await bcrypt.hash(password, 10);
-            updateFields.push(`password = $${nextParamIndex}`);
-            updateParams.push(hashedPassword);
-            nextParamIndex++;
+            query = `UPDATE users SET name = $1, email = $2, password = $3, phone = $4, role = $5 WHERE id = $6 RETURNING id, name, email, role, phone`;
+            values = [name, email, hashedPassword, phone || null, finalRole || 'user', id];
+        } else {
+            query = `UPDATE users SET name = $1, email = $2, phone = $3, role = $4 WHERE id = $5 RETURNING id, name, email, role, phone`;
+            values = [name, email, phone || null, finalRole || 'user', id];
         }
 
-        const updateQuery = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${nextParamIndex} RETURNING id, name, email, role, avatar`;
-        updateParams.push(id);
-
-        const result = await pool.query(updateQuery, updateParams);
+        const result = await pool.query(query, values);
 
         if (result.rows.length === 0) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -37,8 +44,8 @@ export async function PUT(req, { params }) {
 
         return NextResponse.json({ message: 'User updated successfully', user: result.rows[0] });
     } catch (error) {
-        console.error('Update user error:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        console.error('Update User Error:', error);
+        return NextResponse.json({ error: 'Server error updating user' }, { status: 500 });
     }
 }
 
@@ -46,30 +53,23 @@ export async function PUT(req, { params }) {
 export async function DELETE(req, { params }) {
     try {
         const decoded = verifyAuth(req);
-        if (!decoded) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
+        
+        // ✅ Direct inline admin check
+        if (!decoded || decoded.role !== 'admin') {
+            return NextResponse.json({ error: 'Access denied. Admins only.' }, { status: 403 });
         }
 
-        if (!adminOnly(decoded)) {
-            return NextResponse.json({ error: 'Access denied. Admin only.' }, { status: 403 });
+        const { id } = params;
+        
+        if (String(decoded.id) === String(id)) {
+            return NextResponse.json({ error: 'You cannot delete your own admin account.' }, { status: 400 });
         }
 
-        const { id } = await params;
-
-        // Prevent deleting self
-        if (parseInt(id) === decoded.id) {
-            return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
-        }
-
-        const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
-
-        if (result.rows.length === 0) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
+        await pool.query('DELETE FROM users WHERE id = $1', [id]);
 
         return NextResponse.json({ message: 'User deleted successfully' });
     } catch (error) {
-        console.error('Delete user error:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        console.error('Delete User Error:', error);
+        return NextResponse.json({ error: 'Server error deleting user' }, { status: 500 });
     }
 }
