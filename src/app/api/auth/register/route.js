@@ -1,66 +1,67 @@
 import { NextResponse } from 'next/server';
+import { pool } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { pool } from '@/lib/db';
 
 export async function POST(req) {
     try {
-        const { name, email, password, role, businessDetails, connectionDetails, skipConnection } = await req.json();
+        const body = await req.json();
+        const { 
+            name, 
+            email, 
+            password, 
+            isGoogleAuth, 
+            accountType, 
+            companyName, 
+            industry, 
+            employeeCount, 
+            phone 
+        } = body;
 
-        // Check if user exists
-        const existingUsers = await pool.query(
-            'SELECT * FROM users WHERE email = $1',
-            [email]
-        );
-
-        if (existingUsers.rows.length > 0) {
-            return NextResponse.json({ error: 'User already exists' }, { status: 400 });
+        // 1. Basic Validation
+        if (!name || !email) {
+            return NextResponse.json({ error: 'Name and email are required.' }, { status: 400 });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        if (!isGoogleAuth && !password) {
+            return NextResponse.json({ error: 'Password is required for manual registration.' }, { status: 400 });
+        }
 
-        // Insert user
+        // 2. Check if email is already registered
+        const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+        if (existingUser.rows.length > 0) {
+            return NextResponse.json({ error: 'Email is already registered. Please sign in.' }, { status: 400 });
+        }
+
+        // 3. Conditionally Hash Password (Fixes the "Illegal arguments: object, number" error)
+        let hashedPassword = null;
+        if (!isGoogleAuth && password) {
+            hashedPassword = await bcrypt.hash(password, 10);
+        }
+
+        // 4. Insert User
+        // Setting default role as 'admin' for the first user of the workspace
         const result = await pool.query(
-            'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-            [name, email, hashedPassword, role || 'user']
+            `INSERT INTO users (name, email, password, phone, role) 
+             VALUES ($1, $2, $3, $4, 'admin') RETURNING id, name, email, role, phone`,
+            [name, email, hashedPassword, phone || null]
         );
 
         const user = result.rows[0];
 
-        // Insert business details and connection details into crm_settings
-        const { companyName, industry, website, employeeCount } = businessDetails || {};
-        const { backend_url, api_key } = connectionDetails || {};
+        // Optional: If you want to store company info later, you can insert it into a companies/settings table here using `companyName`, `industry`, `employeeCount`
 
-        await pool.query(
-            `INSERT INTO crm_settings (
-                company_name, industry, website, employee_count, backend_connected, backend_url, api_key
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-                companyName || 'My Company',
-                industry || '',
-                website || '',
-                employeeCount ? parseInt(employeeCount) : null,
-                skipConnection ? 0 : 1,
-                backend_url || '',
-                api_key || ''
-            ]
-        );
-
-        // Generate token
+        // 5. Generate JWT Token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
-        return NextResponse.json({
-            message: 'User registered successfully',
-            token,
-            user
-        }, { status: 201 });
+        return NextResponse.json({ message: 'Registration successful', token, user }, { status: 201 });
+
     } catch (error) {
-        console.error('Register error:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        console.error('Registration API Error:', error);
+        return NextResponse.json({ error: 'Server error during registration. Please try again.' }, { status: 500 });
     }
 }

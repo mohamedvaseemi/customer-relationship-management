@@ -1,39 +1,89 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { generateApiKey, hashKey } from '@/lib/apiKeyUtils';
-import { verifyAuth, adminOnly } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth'; 
 
-/**
- * GET - List all API keys (metadata only)
- * Requires admin JWT auth
- */
 export async function GET(req) {
-    const user = verifyAuth(req);
-    if (!user || !adminOnly(user)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    try {
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Unauthorized access.' }, { status: 401 });
+        }
+
+        const result = await pool.query(
+            `SELECT id, name, key_prefix, scopes, last_used, created_at, expires_at, is_active 
+             FROM api_keys 
+             WHERE user_id = $1 ORDER BY created_at DESC`,
+            [decoded.id]
+        );
+
+        return NextResponse.json({ keys: result.rows });
+    } catch (error) {
+        console.error('API Keys GET Error:', error);
+        return NextResponse.json({ error: 'Server error fetching API keys' }, { status: 500 });
     }
-    const result = await pool.query(`SELECT id, name, LEFT(key_hash, 12) AS prefix, scopes, is_active, created_at, last_used_at, expires_at FROM api_keys ORDER BY id DESC`);
-    return NextResponse.json({ keys: result.rows }, { status: 200 });
 }
 
-/**
- * POST - Create a new API key
- * Body: { name: string, scopes?: string[], expires_in_days?: number }
- * Returns the raw key **once**
- */
 export async function POST(req) {
-    const user = verifyAuth(req);
-    if (!user || !adminOnly(user)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    try {
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Unauthorized access.' }, { status: 401 });
+        }
+
+        const body = await req.json();
+        const { name, scopes, expiresInDays = 365 } = body;
+
+        if (!name) {
+            return NextResponse.json({ error: 'API Key name is required' }, { status: 400 });
+        }
+
+        // Generate Secure Key
+        const { rawKey, hashedKey, prefix } = generateApiKey();
+        
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + parseInt(expiresInDays));
+
+        // Store hash in DB
+        const result = await pool.query(
+            `INSERT INTO api_keys (user_id, name, key_hash, key_prefix, scopes, expires_at) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING id, name, key_prefix, scopes, created_at, expires_at, is_active`,
+            [decoded.id, name, hashedKey, prefix, JSON.stringify(scopes || ['read']), expiresAt]
+        );
+
+        // ONLY return the raw key ONCE during creation
+        return NextResponse.json({ 
+            message: 'API Key created successfully',
+            key: result.rows[0],
+            rawKey: rawKey 
+        }, { status: 201 });
+
+    } catch (error) {
+        console.error('API Keys POST Error:', error);
+        return NextResponse.json({ error: 'Server error generating API key' }, { status: 500 });
     }
-    const { name, scopes = [], expires_in_days } = await req.json();
-    const rawKey = generateApiKey();
-    const keyHash = hashKey(rawKey);
-    const expiresAt = expires_in_days ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000) : null;
-    await pool.query(
-        `INSERT INTO api_keys (name, key_hash, scopes, expires_at) VALUES ($1, $2, $3, $4)`,
-        [name, keyHash, JSON.stringify(scopes), expiresAt]
-    );
-    return NextResponse.json({ rawKey, name, scopes, expiresAt }, { status: 201 });
 }
 
+export async function DELETE(req) {
+    try {
+        const decoded = verifyAuth(req);
+        if (!decoded) {
+            return NextResponse.json({ error: 'Unauthorized access.' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+
+        if (!id) {
+            return NextResponse.json({ error: 'Key ID is required' }, { status: 400 });
+        }
+
+        await pool.query('DELETE FROM api_keys WHERE id = $1 AND user_id = $2', [id, decoded.id]);
+
+        return NextResponse.json({ message: 'API key revoked successfully' });
+    } catch (error) {
+        console.error('API Keys DELETE Error:', error);
+        return NextResponse.json({ error: 'Server error revoking API key' }, { status: 500 });
+    }
+}

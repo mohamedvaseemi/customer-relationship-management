@@ -2,64 +2,48 @@ import { NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { pool } from '@/lib/db';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 
-const googleClientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-const client = new OAuth2Client(googleClientId);
+const client = new OAuth2Client(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
 
 export async function POST(req) {
     try {
         const { credential } = await req.json();
 
-        // Verify the token
+        // Verify Google Token
         const ticket = await client.verifyIdToken({
             idToken: credential,
-            audience: googleClientId,
+            audience: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
         });
-        
-        const payload = ticket.getPayload();
-        
-        if (!payload) {
-            return NextResponse.json({ error: 'Invalid Google token' }, { status: 400 });
-        }
 
-        const { email, name, sub: googleId } = payload;
+        const payload = ticket.getPayload();
+        const { email, given_name, family_name, picture } = payload;
 
         // Check if user already exists
-        let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        let user = userResult.rows[0];
+        const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
-        if (!user) {
-            // Create a new user if they don't exist
-            // We use a dummy complex password since they will log in via Google
-            const dummyPassword = await bcrypt.hash(Math.random().toString(36).slice(-10) + googleId, 10);
-            
-            const insertResult = await pool.query(
-                'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-                [name, email, dummyPassword, 'user']
+        if (userCheck.rows.length > 0) {
+            // User exists -> Log them in normally
+            const user = userCheck.rows[0];
+            const token = jwt.sign(
+                { id: user.id, email: user.email, role: user.role },
+                process.env.JWT_SECRET,
+                { expiresIn: '7d' }
             );
-            user = insertResult.rows[0];
+            return NextResponse.json({ token, user, isNewUser: false });
+        } else {
+            // User DOES NOT exist -> Send data to frontend to complete onboarding
+            return NextResponse.json({ 
+                isNewUser: true, 
+                googleData: { 
+                    email, 
+                    firstName: given_name, 
+                    lastName: family_name, 
+                    picture 
+                } 
+            });
         }
-
-        // Generate our own JWT token
-        const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        return NextResponse.json({
-            message: 'Google login successful',
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-            }
-        });
     } catch (error) {
-        console.error('Google auth error:', error);
-        return NextResponse.json({ error: 'Failed to authenticate with Google' }, { status: 500 });
+        console.error('Google Auth Error:', error);
+        return NextResponse.json({ error: 'Invalid Google token' }, { status: 400 });
     }
 }

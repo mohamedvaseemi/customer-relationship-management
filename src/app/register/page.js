@@ -3,257 +3,151 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { FiMail, FiLock, FiUser, FiArrowRight, FiArrowLeft, FiGrid, FiDatabase, FiCheckCircle, FiAlertCircle, FiActivity, FiChevronDown, FiCheck, FiSearch, FiRefreshCw, FiGlobe, FiBriefcase, FiUsers, FiCopy, FiEye, FiEyeOff } from 'react-icons/fi';
+import { 
+    FiMail, FiLock, FiUser, FiArrowRight, FiArrowLeft, 
+    FiGrid, FiBriefcase, FiUsers, FiAlertCircle 
+} from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import '@/styles/Auth.css';
 
-
-
 export default function Register() {
-    const [isLogin, setIsLogin] = useState(false);
     const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
-        email: '',
-        password: '',
-        name: ''
-    });
+    const [accountType, setAccountType] = useState('company'); // 'individual' or 'company'
     
-    const [businessDetails, setBusinessDetails] = useState({
-        companyName: '',
-        industry: 'Technology',
-        website: '',
-        employeeCount: '1-10'
-    });
-
-    const [connectionDetails, setConnectionDetails] = useState({
-        backend_url: '',
-        api_key: ''
-    });
-
-    const [connectionTestStatus, setConnectionTestStatus] = useState(null);
-    const [testingConnection, setTestingConnection] = useState(false);
+    // Core User Data
+    const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+    
+    // Workspace Data
+    const [workspace, setWorkspace] = useState({ companyName: '', industry: 'Technology', employeeCount: '1-10', phone: '' });
+    
+    const [isGoogleOnboarding, setIsGoogleOnboarding] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showApiKey, setShowApiKey] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const { login, register, user } = useAuth();
+    
+    const { register, user } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const isGoogleOnboarding = params.get('google') === 'true';
-            if (user && !isGoogleOnboarding) {
-                router.push('/dashboard');
-            }
-        } else if (user) {
+        if (user) {
             router.push('/dashboard');
+        }
+
+        // Check if user was redirected from Login page via Google
+        const pendingGoogle = sessionStorage.getItem('pendingGoogleAuth');
+        if (pendingGoogle) {
+            const googleData = JSON.parse(pendingGoogle);
+            setFormData(prev => ({
+                ...prev,
+                name: `${googleData.given_name} ${googleData.family_name}`,
+                email: googleData.email
+            }));
+            setIsGoogleOnboarding(true);
+            setStep(1); // Force them to choose Account Type first
         }
     }, [user, router]);
 
-    useEffect(() => {
-        const cleanClientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const isGoogleOnboarding = params.get('google') === 'true';
-            const stepParam = params.get('step');
-            if (isGoogleOnboarding || stepParam === '2') {
-                setStep(2);
-            }
-            
-            const errorType = params.get('error');
-            if (errorType) {
-                let userFriendlyError = 'Google authentication failed.';
-                if (errorType === 'google_config_missing') {
-                    userFriendlyError = 'Google Sign-In is not configured correctly on the server. Please check environment variables.';
-                } else if (errorType === 'missing_authorization_code') {
-                    userFriendlyError = 'Authorization code was not returned from Google. Please try again.';
-                } else if (errorType === 'invalid_google_payload') {
-                    userFriendlyError = 'Could not verify your identity with Google.';
-                } else if (errorType === 'localstorage_failed') {
-                    userFriendlyError = 'Failed to store your authentication session. Please enable cookies.';
-                } else if (errorType === 'access_denied') {
-                    userFriendlyError = 'Access was denied. You cancelled Google Sign-In.';
-                } else {
-                    userFriendlyError = `Google authentication failed: ${decodeURIComponent(errorType)}`;
-                }
-                setError(userFriendlyError);
+    // Google Auth executed inside Register Page
+    const handleGoogleRegister = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setLoading(true);
+            setError('');
+            try {
+                const userInfo = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
                 
-                const newUrl = window.location.pathname;
-                window.history.replaceState({}, document.title, newUrl);
-            }
-        }
-    }, []);
-
-    useEffect(() => {
-        if (user && typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const isGoogleOnboarding = params.get('google') === 'true';
-            if (isGoogleOnboarding) {
                 setFormData(prev => ({
                     ...prev,
-                    name: user.name || '',
-                    email: user.email || ''
+                    name: `${userInfo.data.given_name} ${userInfo.data.family_name}`,
+                    email: userInfo.data.email,
+                    password: '' // Explicitly clear password as it's not needed for Google
                 }));
-            }
-        }
-    }, [user]);
-
-    const handleGoogleLogin = () => {
-        setError('');
-        const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').replace(/['"]/g, '');
-        if (!clientId || clientId === 'your_google_client_id.apps.googleusercontent.com') {
-            setError('Google Sign-In client ID is not configured in .env file.');
-            return;
-        }
-        
-        const redirectUri = `${window.location.origin}/api/auth/callback/google`;
-        const scope = 'openid email profile';
-        const responseType = 'code';
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=${responseType}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
-        
-        window.location.href = authUrl;
-    };
-
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-        setError('');
-    };
-
-    const handleBusinessChange = (e) => {
-        setBusinessDetails({
-            ...businessDetails,
-            [e.target.name]: e.target.value
-        });
-        setError('');
-    };
-
-    const handleConnectionChange = (e) => {
-        setConnectionDetails({
-            ...connectionDetails,
-            [e.target.name]: e.target.value
-        });
-        setError('');
-        setConnectionTestStatus(null);
-    };
-
-    const handleTestConnection = async () => {
-        setError('');
-        setTestingConnection(true);
-        setConnectionTestStatus(null);
-        try {
-            const response = await axios.post('/api/auth/test-connection', connectionDetails);
-            setConnectionTestStatus({
-                success: true,
-                message: response.data.message || 'Backend connection test succeeded!'
-            });
-        } catch (err) {
-            setConnectionTestStatus({
-                success: false,
-                message: err.response?.data?.error || err.message || 'Backend connection failed.'
-            });
-        } finally {
-            setTestingConnection(false);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        if (isLogin) {
-            setLoading(true);
-            try {
-                await login({ email: formData.email, password: formData.password });
-                router.push('/dashboard');
+                
+                setIsGoogleOnboarding(true);
+                setStep(3); // Skip credentials and jump directly to Workspace setup
             } catch (err) {
-                setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
+                setError('Google signup failed. Please try again.');
             } finally {
                 setLoading(false);
             }
-        } else {
-            // Registration steps navigation
-            if (step === 1) {
-                if (!formData.name || !formData.email || !formData.password) {
-                    setError('Please fill in all account details.');
-                    return;
-                }
-                setStep(2);
-            } else if (step === 2) {
-                if (!businessDetails.companyName) {
-                    setError('Company name is required.');
-                    return;
-                }
-                setStep(3);
+        }
+    });
+
+    const handleNext = (e) => {
+        if (e) e.preventDefault();
+        setError('');
+        
+        if (step === 1) {
+            // After Account Type selection, check if Google was already authenticated
+            if (isGoogleOnboarding) {
+                setStep(3); // Skip Step 2 entirely
+            } else {
+                setStep(2); // Proceed to manual credentials
             }
+        } else if (step === 2) {
+            // Validate manual credentials
+            if (!formData.name || !formData.email || !formData.password) {
+                return setError('Please fill all required credentials.');
+            }
+            if (formData.password.length < 6) {
+                return setError('Password must be at least 6 characters.');
+            }
+            setStep(3);
         }
     };
 
-    const handleRegisterSubmit = async (skipConnection = false) => {
+    const handleBack = () => {
         setError('');
+        if (step === 3) {
+            // If they are on step 3 via Google, back takes them to step 1
+            if (isGoogleOnboarding) setStep(1);
+            else setStep(2);
+        } else if (step === 2) {
+            setStep(1);
+        }
+    };
+
+    const handleRegisterSubmit = async (e) => {
+        e.preventDefault();
+        setError(''); 
         setLoading(true);
+
+        // Validation for company name
+        if (accountType === 'company' && !workspace.companyName.trim()) {
+            setLoading(false);
+            return setError('Company name is required for Business accounts.');
+        }
+
         try {
-            const params = new URLSearchParams(window.location.search);
-            const isGoogleOnboarding = params.get('google') === 'true';
+            const payload = {
+                name: formData.name,
+                email: formData.email,
+                password: isGoogleOnboarding ? null : formData.password,
+                isGoogleAuth: isGoogleOnboarding,
+                accountType,
+                companyName: accountType === 'individual' ? 'Independent Developer' : workspace.companyName,
+                industry: workspace.industry,
+                employeeCount: workspace.employeeCount,
+                phone: workspace.phone
+            };
 
-            if (isGoogleOnboarding) {
-                // Since user already exists from Google SSO, we save crm_settings manually
-                let token = Cookies.get('token');
-                if (!token && typeof window !== 'undefined') {
-                    token = localStorage.getItem('token');
-                    if (token) Cookies.set('token', token, { expires: 7 });
-                }
-                const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-                // 1. Save Company Details
-                const employeeCountMap = {
-                    '1-10': 10,
-                    '11-50': 50,
-                    '51-200': 200,
-                    '201-500': 500,
-                    '501+': 1000
-                };
-                const empCount = employeeCountMap[businessDetails.employeeCount] || 0;
-
-                await axios.post('/api/settings/company', {
-                    company_name: businessDetails.companyName,
-                    industry: businessDetails.industry,
-                    website: businessDetails.website,
-                    employee_count: empCount
-                }, { headers });
-
-                // 2. Save Connection Details
-                await axios.post('/api/settings/connection', {
-                    backend_url: skipConnection ? '' : connectionDetails.backend_url,
-                    api_key: skipConnection ? '' : connectionDetails.api_key,
-                    backend_connected: skipConnection ? 0 : 1
-                }, { headers });
-            } else {
-                // Normal registration
-                await register({
-                    name: formData.name,
-                    email: formData.email,
-                    password: formData.password,
-                    businessDetails,
-                    connectionDetails: skipConnection ? null : connectionDetails,
-                    skipConnection
-                });
-            }
+            const response = await axios.post('/api/auth/register', payload);
             
-            if (typeof window !== 'undefined') {
-                Cookies.set('sampleDataEnabled', skipConnection ? 'true' : 'false', { expires: 365 });
-                window.dispatchEvent(new Event('storage'));
-            }
-            router.push('/dashboard');
+            // Set session successfully
+            Cookies.set('token', response.data.token, { expires: 7 });
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+            sessionStorage.removeItem('pendingGoogleAuth');
+            
+            // Initialize system with sample data settings
+            Cookies.set('sampleDataEnabled', 'true', { expires: 365 }); 
+            
+            window.location.href = '/dashboard';
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Registration failed.');
-        } finally {
             setLoading(false);
         }
     };
@@ -262,396 +156,186 @@ export default function Register() {
         <div className="auth-container">
             <div className="auth-split-layout">
                 {/* Branding Panel */}
-                <motion.div
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.6 }}
-                    className="auth-branding-panel"
-                >
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="auth-branding-panel">
+                    <div className="auth-logo">
+                        <img src="/favicon.gif" alt="Kibon Logo" style={{ width: 42, height: 42, borderRadius: 10 }} />
+                        <span>Kibon CRM</span>
+                    </div>
                     <div className="brand-content">
-                        <div className="auth-logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '28px', fontWeight: 'bold' }}>
-                            <img src="/favicon.gif" alt="Kibon Logo" style={{ width: 48, height: 48, borderRadius: 8 }} />
-                            <span>Kibon</span>
+                        <h1 className="brand-headline">Set up your workspace.</h1>
+                        <p className="brand-subline">Join thousands of businesses and independent developers who trust Kibon to manage their pipeline.</p>
+                        <div className="brand-features" style={{ marginTop: '2rem' }}>
+                            <div className="feature-item"><div className="feature-icon">1</div><span>Select Account Type</span></div>
+                            <div className="feature-item"><div className="feature-icon">2</div><span>Secure Credentials</span></div>
+                            <div className="feature-item"><div className="feature-icon">3</div><span>Workspace Details</span></div>
                         </div>
-                        <h1 className="brand-headline">
-                            Manage your pipeline with precision.
-                        </h1>
-                        <p className="brand-subline">
-                            The all-in-one platform for modern sales teams to track, analyze, and close deals faster than ever.
-                        </p>
-
                     </div>
                 </motion.div>
 
                 {/* Form Panel */}
-                <div className="auth-form-panel">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="auth-form-box"
-                    >
+                <div className="auth-form-panel registration-panel">
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="auth-form-box">
+                        
                         <div className="auth-header">
-                            <h2 className="auth-title">
-                                Create Account (Step {step}/3)
-                            </h2>
+                            <h2 className="auth-title">Create Account</h2>
                             <p className="auth-subtitle">
-                                {step === 1 
-                                    ? 'Create your account credentials.' 
-                                    : step === 2 
-                                        ? 'Provide your business details.' 
-                                        : 'Connect your application database.'}
+                                {step === 1 ? 'How will you be using Kibon?' : step === 2 ? 'Set up your credentials.' : 'Tell us about your workspace.'}
                             </p>
                         </div>
 
-                        {error && (
-                            <div className="error-message">
-                                {error}
-                            </div>
-                        )}
-
-                        <form onSubmit={handleSubmit} className="auth-form">
-                            {step === 1 && (
-                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                                    <div className="input-field">
-                                        <label htmlFor="name">Full Name</label>
-                                        <div className="input-wrapper">
-                                            <FiUser />
-                                            <input
-                                                id="name"
-                                                type="text"
-                                                name="name"
-                                                className="input-styled"
-                                                placeholder="John Doe"
-                                                value={formData.name}
-                                                onChange={handleChange}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="input-field">
-                                        <label htmlFor="email">Work Email</label>
-                                        <div className="input-wrapper">
-                                            <FiMail />
-                                            <input
-                                                id="email"
-                                                type="email"
-                                                name="email"
-                                                className="input-styled"
-                                                placeholder="name@company.com"
-                                                value={formData.email}
-                                                onChange={handleChange}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="input-field">
-                                        <label htmlFor="password">Password</label>
-                                        <div className="input-wrapper">
-                                            <FiLock />
-                                            <input
-                                                id="password"
-                                                type="password"
-                                                name="password"
-                                                className="input-styled"
-                                                placeholder="••••••••"
-                                                value={formData.password}
-                                                onChange={handleChange}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <button type="submit" className="auth-btn">
-                                        Continue to Business Details
-                                        <FiArrowRight />
-                                    </button>
-                                </motion.div>
-                            )}
-
-                            {step === 2 && (
-                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                                    <div className="flex flex-col gap-4">
-                                        <div className="input-field">
-                                            <label htmlFor="companyName">Company Name *</label>
-                                            <div className="input-wrapper">
-                                                <FiGrid />
-                                                <input
-                                                    id="companyName"
-                                                    type="text"
-                                                    name="companyName"
-                                                    className="input-styled"
-                                                    placeholder="Acme Corp"
-                                                    value={businessDetails.companyName}
-                                                    onChange={handleBusinessChange}
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="input-field">
-                                            <label htmlFor="website">Website URL</label>
-                                            <div className="input-wrapper">
-                                                <FiGlobe />
-                                                <input
-                                                    id="website"
-                                                    type="url"
-                                                    name="website"
-                                                    className="input-styled"
-                                                    placeholder="https://acme.com"
-                                                    value={businessDetails.website}
-                                                    onChange={handleBusinessChange}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="input-field">
-                                            <label htmlFor="industry">Industry</label>
-                                            <div className="input-wrapper">
-                                                <FiBriefcase />
-                                                <select
-                                                    id="industry"
-                                                    name="industry"
-                                                    className="input-styled"
-                                                    value={businessDetails.industry}
-                                                    onChange={handleBusinessChange}
-                                                    style={{ appearance: 'none', cursor: 'pointer' }}
-                                                >
-                                                    <option value="Technology">Technology</option>
-                                                    <option value="Finance">Finance</option>
-                                                    <option value="Healthcare">Healthcare</option>
-                                                    <option value="Retail">Retail</option>
-                                                    <option value="Manufacturing">Manufacturing</option>
-                                                    <option value="Education">Education</option>
-                                                    <option value="Services">Services</option>
-                                                    <option value="Other">Other</option>
-                                                </select>
-                                                
-                                            </div>
-                                        </div>
-
-                                        <div className="input-field">
-                                            <label htmlFor="employeeCount">Employee Count</label>
-                                            <div className="input-wrapper">
-                                                <FiUsers />
-                                                <select
-                                                    id="employeeCount"
-                                                    name="employeeCount"
-                                                    className="input-styled"
-                                                    value={businessDetails.employeeCount}
-                                                    onChange={handleBusinessChange}
-                                                    style={{ appearance: 'none', cursor: 'pointer' }}
-                                                >
-                                                    <option value="1-10">1-10 Employees</option>
-                                                    <option value="11-50">11-50 Employees</option>
-                                                    <option value="51-200">51-200 Employees</option>
-                                                    <option value="201-500">201-500 Employees</option>
-                                                    <option value="501+">501+ Employees</option>
-                                                </select>
-                                                
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2 mt-6">
-                                        <button type="button" className="btn btn-secondary w-full" onClick={() => setStep(1)}>
-                                            <FiArrowLeft /> Back
-                                        </button>
-                                        <button 
-                                            type="submit" 
-                                            className="btn btn-primary w-full"
-                                            disabled={!businessDetails.companyName}
-                                        >
-                                            Next <FiArrowRight />
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {step === 3 && (
-                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                                    <div className="flex flex-col gap-4 mb-4">
-                                        <div className="input-field">
-                                            <label htmlFor="backend_url">Backend URL</label>
-                                            <div className="input-wrapper">
-                                                <FiDatabase />
-                                                <input
-                                                    id="backend_url"
-                                                    type="text"
-                                                    name="backend_url"
-                                                    className="input-styled"
-                                                    placeholder="https://your-backend.com/api"
-                                                    value={connectionDetails.backend_url}
-                                                    onChange={handleConnectionChange}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="input-field">
-                                            <label htmlFor="api_key">API Key</label>
-                                            <div className="input-wrapper">
-                                                <FiLock />
-                                                <input
-                                                    id="api_key"
-                                                    type={showApiKey ? "text" : "password"}
-                                                    name="api_key"
-                                                    className="input-styled"
-                                                    placeholder="Enter API Key"
-                                                    value={connectionDetails.api_key}
-                                                    onChange={handleConnectionChange}
-                                                    style={{ paddingRight: '4.5rem' }}
-                                                />
-                                                <div className="flex items-center gap-1" style={{ position: 'absolute', right: '0.75rem', zIndex: 10 }}>
-                                                    {connectionDetails.api_key && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(connectionDetails.api_key);
-                                                                setCopied(true);
-                                                                setTimeout(() => setCopied(false), 2000);
-                                                            }}
-                                                            style={{
-                                                                width: '28px',
-                                                                height: '28px',
-                                                                border: 'none',
-                                                                background: 'transparent',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                color: 'var(--text-muted)',
-                                                                transition: 'color 0.2s'
-                                                            }}
-                                                            title="Copy API Key"
-                                                        >
-                                                            {copied ? <FiCheckCircle style={{ color: 'var(--success)' }} /> : <FiCopy />}
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowApiKey(!showApiKey)}
-                                                        style={{
-                                                            width: '28px',
-                                                            height: '28px',
-                                                            border: 'none',
-                                                            background: 'transparent',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            color: 'var(--text-muted)',
-                                                            transition: 'color 0.2s'
-                                                        }}
-                                                        title={showApiKey ? "Hide API Key" : "Show API Key"}
-                                                    >
-                                                        {showApiKey ? <FiEyeOff /> : <FiEye />}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {connectionTestStatus && (
-                                        <div className={`p-3 rounded mb-4 text-sm flex items-center gap-2 ${connectionTestStatus.success ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-                                            {connectionTestStatus.success ? <FiCheckCircle /> : <FiAlertCircle />}
-                                            <span>{connectionTestStatus.message}</span>
-                                        </div>
-                                    )}
-
-                                    <div className="flex flex-col gap-2 mb-4">
-                                        <button
-                                            type="button"
-                                            className="btn btn-secondary w-full flex items-center justify-center gap-2"
-                                            onClick={() => {
-                                                const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                                                let newKey = 'crm_key_';
-                                                for (let i = 0; i < 32; i++) {
-                                                    newKey += characters.charAt(Math.floor(Math.random() * characters.length));
-                                                }
-                                                setConnectionDetails(prev => ({
-                                                    ...prev,
-                                                    api_key: newKey,
-                                                    backend_url: prev.backend_url || (typeof window !== 'undefined' ? window.location.origin : '')
-                                                }));
-                                            }}
-                                            style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
-                                        >
-                                            Generate API Key
-                                        </button>
-
-                                        {connectionDetails.backend_url && (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-secondary w-full"
-                                                    onClick={handleTestConnection}
-                                                    disabled={testingConnection}
-                                                >
-                                                    {testingConnection ? 'Testing...' : 'Test Connection'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-primary w-full"
-                                                    onClick={() => handleRegisterSubmit(false)}
-                                                    disabled={loading}
-                                                >
-                                                    {loading ? 'Connecting...' : 'Connect CRM Backend'}
-                                                </button>
-                                            </>
-                                        )}
-
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline w-full"
-                                            onClick={() => handleRegisterSubmit(true)}
-                                            disabled={loading}
-                                            style={{ borderStyle: 'dashed', color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}
-                                        >
-                                            Skip Setup (Add API Key Later)
-                                        </button>
-                                    </div>
-
-                                    <button type="button" className="btn btn-ghost w-full" onClick={() => setStep(2)}>
-                                        <FiArrowLeft /> Back to Business Details
-                                    </button>
-                                </motion.div>
-                            )}
-
-                        </form>
-
-                        {step === 1 && (
-                            <div className="social-login">
-                                <div className="social-divider">Or continue with</div>
-                                <button
-                                    type="button"
-                                    className="social-btn"
-                                    onClick={handleGoogleLogin}
-                                    disabled={loading}
-                                >
-                                    <FcGoogle size={20} />
-                                    Sign up with Google
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="auth-footer">
-                            Already have an account?
-                            <button
-                                className="auth-link"
-                                onClick={() => router.push('/login')}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                            >
-                                Sign In
-                            </button>
+                        {/* Step Progress Indicator */}
+                        <div className="step-indicator">
+                            <div className={`step-dot ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}></div>
+                            <div className={`step-dot ${step >= 2 ? 'active' : ''} ${step > 2 ? 'completed' : ''}`}></div>
+                            <div className={`step-dot ${step >= 3 ? 'active' : ''}`}></div>
                         </div>
 
-                        <div className="auth-legal-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px' }}>
-                            <Link href="/terms" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Terms & Conditions</Link>
-                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                            <Link href="/refund-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Refund Policy</Link>
-                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                            <Link href="/contact" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--primary-color)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}>Contact Us</Link>
+                        {error && <div className="error-message"><FiAlertCircle /> {error}</div>}
+
+                        <form onSubmit={step === 3 ? handleRegisterSubmit : handleNext} className="auth-form">
+                            <AnimatePresence mode="wait">
+                                
+                                {/* STEP 1: ACCOUNT TYPE */}
+                                {step === 1 && (
+                                    <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col gap-4">
+                                        <div className="account-type-grid">
+                                            <button type="button" className={`type-card ${accountType === 'individual' ? 'active' : ''}`} onClick={() => setAccountType('individual')}>
+                                                <FiUser className="type-icon" />
+                                                <div className="type-info">
+                                                    <h4>Independent Developer</h4>
+                                                    <p>I'm working solo</p>
+                                                </div>
+                                            </button>
+                                            <button type="button" className={`type-card ${accountType === 'company' ? 'active' : ''}`} onClick={() => setAccountType('company')}>
+                                                <FiBriefcase className="type-icon" />
+                                                <div className="type-info">
+                                                    <h4>Company / Team</h4>
+                                                    <p>I represent a business</p>
+                                                </div>
+                                            </button>
+                                        </div>
+                                        <button type="submit" className="btn btn-primary w-full mt-4">
+                                            Continue <FiArrowRight />
+                                        </button>
+                                    </motion.div>
+                                )}
+
+                                {/* STEP 2: CREDENTIALS (Skipped if Google Auth is active) */}
+                                {step === 2 && !isGoogleOnboarding && (
+                                    <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col gap-4">
+                                        <div className="input-field">
+                                            <label>Full Name *</label>
+                                            <div className="input-wrapper">
+                                                <FiUser />
+                                                <input type="text" className="input-styled" placeholder="John Doe" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                            </div>
+                                        </div>
+                                        <div className="input-field">
+                                            <label>Work Email *</label>
+                                            <div className="input-wrapper">
+                                                <FiMail />
+                                                <input type="email" className="input-styled" placeholder="name@company.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="input-field">
+                                            <label>Password *</label>
+                                            <div className="input-wrapper">
+                                                <FiLock />
+                                                <input type="password" className="input-styled" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                            <button type="button" className="btn btn-secondary w-full" onClick={handleBack}>
+                                                <FiArrowLeft /> Back
+                                            </button>
+                                            <button type="submit" className="btn btn-primary w-full">
+                                                Next Step <FiArrowRight />
+                                            </button>
+                                        </div>
+
+                                        {/* Google Signup Button */}
+                                        <div className="social-login">
+                                            <div className="social-divider">Or skip manual entry with</div>
+                                            <button type="button" className="social-btn" onClick={() => handleGoogleRegister()} disabled={loading}>
+                                                {loading ? 'Connecting...' : <><FcGoogle size={20} /> Sign up with Google</>}
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* STEP 3: WORKSPACE DETAILS */}
+                                {step === 3 && (
+                                    <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col gap-4">
+                                        
+                                        {/* Greeting for Google Users */}
+                                        {isGoogleOnboarding && (
+                                            <div style={{ padding: '0.8rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                                                <strong>Welcome, {formData.name}!</strong> Your Google account is verified. Just complete your workspace details below.
+                                            </div>
+                                        )}
+
+                                        {accountType === 'company' && (
+                                            <div className="input-field">
+                                                <label>Company Name *</label>
+                                                <div className="input-wrapper">
+                                                    <FiGrid />
+                                                    <input type="text" className="input-styled" placeholder="Acme Corp" value={workspace.companyName} onChange={e => setWorkspace({...workspace, companyName: e.target.value})} required />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="input-field">
+                                            <label>Phone Number (Optional)</label>
+                                            <div className="input-wrapper">
+                                                <FiBriefcase />
+                                                <input type="text" className="input-styled" placeholder="+1 (555) 000-0000" value={workspace.phone} onChange={e => setWorkspace({...workspace, phone: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                                            <div className="input-field" style={{ flex: 1 }}>
+                                                <label>Industry</label>
+                                                <div className="input-wrapper">
+                                                    <select className="input-styled" value={workspace.industry} onChange={e => setWorkspace({...workspace, industry: e.target.value})}>
+                                                        <option value="Technology">Software / IT</option>
+                                                        <option value="E-Commerce">E-Commerce</option>
+                                                        <option value="Agency">Agency / Services</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            {accountType === 'company' && (
+                                                <div className="input-field" style={{ flex: 1 }}>
+                                                    <label>Employees</label>
+                                                    <div className="input-wrapper">
+                                                        <FiUsers />
+                                                        <select className="input-styled" value={workspace.employeeCount} onChange={e => setWorkspace({...workspace, employeeCount: e.target.value})}>
+                                                            <option value="1-10">1-10</option>
+                                                            <option value="11-50">11-50</option>
+                                                            <option value="51-200">51-200</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                                            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={handleBack} disabled={loading}>
+                                                <FiArrowLeft /> Back
+                                            </button>
+                                            <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={loading}>
+                                                {loading ? 'Setting up Workspace...' : 'Complete Registration'}
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </form>
+
+                        <div className="auth-footer" style={{ marginTop: '2rem' }}>
+                            Already have an account? <Link href="/login" className="auth-link">Sign In</Link>
                         </div>
                     </motion.div>
                 </div>

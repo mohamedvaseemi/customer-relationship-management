@@ -10,8 +10,17 @@ const getSSLConfig = () => {
     return false;
 };
 
+// Common connection options for stability on cloud databases (Aiven, Neon, Supabase)
+const commonPoolConfig = {
+    max: 10,
+    idleTimeoutMillis: 20000,           // Close idle clients before cloud timeouts trigger (20s)
+    connectionTimeoutMillis: 10000,     // Timeout after 10s if connection cannot be established
+    keepAlive: true,                    // Send TCP keepalive packets to prevent silent drops
+    keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s of inactivity
+};
+
 const createPool = () => {
-    // Prefer individual DB_* config if DB_HOST is present to avoid sslmode query string warnings & connection issues
+    // 1. Prefer individual DB_* environment variables
     if (process.env.DB_HOST) {
         return new pg.Pool({
             host: process.env.DB_HOST.trim(),
@@ -19,41 +28,44 @@ const createPool = () => {
             user: (process.env.DB_USER || '').trim(),
             password: (process.env.DB_PASSWORD || '').trim(),
             database: (process.env.DB_NAME || '').trim(),
-            ssl: getSSLConfig(),
-            max: 10,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
+            ssl: getSSLConfig() || { rejectUnauthorized: false },
+            ...commonPoolConfig,
         });
     }
 
+    // 2. Fallback to DATABASE_URL / POSTGRES_URL connection strings
     const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
     if (connectionString) {
         return new pg.Pool({
             connectionString,
             ssl: getSSLConfig() || { rejectUnauthorized: false },
-            max: 10,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
+            ...commonPoolConfig,
         });
     }
 
-    throw new Error('Database configuration missing. Set DB_HOST or DATABASE_URL in environment.');
+    console.warn('⚠️ DB_HOST or DATABASE_URL not set in environment.');
+    return new pg.Pool({ ...commonPoolConfig });
 };
 
 // Cache pool on globalThis for Next.js hot-reloading in development
 const globalForPg = globalThis;
-export const pool = globalForPg.postgresPool || createPool();
+if (!globalForPg.postgresPool) {
+    globalForPg.postgresPool = createPool();
 
-if (process.env.NODE_ENV !== 'production') {
-    globalForPg.postgresPool = pool;
+    // Gracefully handle idle client disconnects from the cloud provider
+    globalForPg.postgresPool.on('error', (err) => {
+        const networkErrors = ['ETIMEDOUT', 'ECONNRESET', 'EPIPE', '57P01'];
+        if (networkErrors.includes(err.code) || err.message?.includes('ETIMEDOUT')) {
+            console.warn(`⚠️ PostgreSQL idle client disconnected gracefully (${err.code || 'ETIMEDOUT'}). Pool will reconnect on next query.`);
+        } else {
+            console.error('❌ Unexpected error on PostgreSQL client:', err.message);
+        }
+    });
 }
 
-// Handle idle connection errors gracefully
-pool.on('error', (err) => {
-    console.error('❌ Unexpected error on idle PostgreSQL client:', err);
-});
+export const pool = globalForPg.postgresPool;
 
-// Helper query function for CRUD operations
+// Helper query function with automatic error logging
 export const query = async (text, params = []) => {
     try {
         return await pool.query(text, params);
@@ -65,5 +77,3 @@ export const query = async (text, params = []) => {
         throw error;
     }
 };
-
-

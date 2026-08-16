@@ -35,13 +35,15 @@ CREATE TABLE IF NOT EXISTS crm_settings (
 -- 3. API Keys Table
 CREATE TABLE IF NOT EXISTS api_keys (
     id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL UNIQUE,
-    scopes JSONB DEFAULT NULL,
-    is_active SMALLINT DEFAULT 1,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NULL
+    key_hash VARCHAR(255) NOT NULL,
+    key_prefix VARCHAR(50) NOT NULL,
+    scopes JSONB DEFAULT '["read"]',
+    last_used TIMESTAMP,
+    expires_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 4. Notifications Table
@@ -272,3 +274,58 @@ CREATE INDEX IF NOT EXISTS idx_deals_contact_id ON deals(contact_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_contact_id ON tickets(contact_id);
 CREATE INDEX IF NOT EXISTS idx_activities_lead_id ON activities(lead_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+
+-- Link users to their respective companies for tenant isolation
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INT REFERENCES companies(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_company_id ON users(company_id);
+
+CREATE TABLE IF NOT EXISTS campaigns (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) DEFAULT 'email',
+    status VARCHAR(50) DEFAULT 'draft',
+    budget DECIMAL(12,2) DEFAULT 0.00,
+    start_date DATE,
+    end_date DATE,
+    description TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+    id SERIAL PRIMARY KEY,
+    subject VARCHAR(255) NOT NULL,
+    description TEXT,
+    status VARCHAR(50) DEFAULT 'open',
+    priority VARCHAR(50) DEFAULT 'medium',
+    contact_id INT REFERENCES contacts(id) ON DELETE SET NULL,
+    assigned_to INT REFERENCES users(id) ON DELETE SET NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_channels (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    is_private BOOLEAN DEFAULT FALSE,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    channel_id INT REFERENCES chat_channels(id) ON DELETE CASCADE,
+    sender_id INT REFERENCES users(id) ON DELETE SET NULL,
+    receiver_id INT REFERENCES users(id) ON DELETE SET NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE users 
+ADD COLUMN plan_id VARCHAR(50) DEFAULT 'basic',
+ADD COLUMN plan_expires_at TIMESTAMP,
+ADD COLUMN account_status VARCHAR(20) DEFAULT 'active', -- 'active', 'grace_period', 'suspended'
+ADD COLUMN grace_period_ends_at TIMESTAMP;

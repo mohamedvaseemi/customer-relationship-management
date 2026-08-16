@@ -1,89 +1,225 @@
 "use client";
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FiPhoneCall, FiVideo, FiMic, FiPhoneIncoming, FiPhoneMissed, FiPhoneForwarded } from 'react-icons/fi';
-import { useAuth } from '@/context/AuthContext';
-import FeatureComingSoon from '@/components/FeatureComingSoon';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { activitiesAPI } from '@/api/api';
+import { 
+    FiPhone, FiPhoneCall, FiPhoneForwarded, FiPlus, 
+    FiSearch, FiTrash2, FiX, FiClock, FiCheckCircle 
+} from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import '@/styles/Calls.css';
 
-const mockCalls = [
-    { id: 1, type: 'incoming', contact: 'Sarah Jenkins', company: 'TechFlow Inc', duration: '15:24', time: '10:30 AM', status: 'completed' },
-    { id: 2, type: 'outgoing', contact: 'Michael Chang', company: 'Global Systems', duration: '05:12', time: '11:45 AM', status: 'completed' },
-    { id: 3, type: 'missed', contact: 'Emma Wilson', company: 'Innovate LLC', duration: '00:00', time: '02:15 PM', status: 'missed' },
-];
+export default function CallsPage() {
+    const [calls, setCalls] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        type: 'call', subject: '', description: '', priority: 'medium', due_date: '', status: 'pending'
+    });
 
-export default function Calls() {
-    const { sampleDataEnabled } = useAuth();
-    const [showFeature, setShowFeature] = useState(false);
+    const fetchCalls = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Fetch only activities of type 'call'
+            const res = await activitiesAPI.getAll({ type: 'call' });
+            setCalls(res.data.activities || []);
+        } catch (err) {
+            console.error('Failed to load calls:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-    if (showFeature) return <FeatureComingSoon title="Telephony Services" />;
+    useEffect(() => {
+        fetchCalls();
+    }, [fetchCalls]);
 
-    const currentCalls = sampleDataEnabled ? mockCalls : [];
+    const filteredCalls = useMemo(() => {
+        return calls.filter(call => 
+            (call.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (call.contact_first_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [calls, searchQuery]);
+
+    const handleCreateCall = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            await activitiesAPI.create(formData);
+            setIsModalOpen(false);
+            setFormData({ type: 'call', subject: '', description: '', priority: 'medium', due_date: '', status: 'pending' });
+            fetchCalls();
+        } catch (err) {
+            console.error('Failed to log call:', err);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleToggleComplete = async (call) => {
+        const newStatus = call.status === 'completed' ? 'pending' : 'completed';
+        try {
+            setCalls(prev => prev.map(c => c.id === call.id ? { ...c, status: newStatus } : c));
+            await activitiesAPI.update(call.id, { ...call, status: newStatus });
+        } catch (err) {
+            console.error('Failed to update call status:', err);
+            fetchCalls();
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm('Delete this call log?')) return;
+        try {
+            setCalls(prev => prev.filter(c => c.id !== id));
+            await activitiesAPI.delete(id);
+        } catch (err) {
+            console.error('Failed to delete call:', err);
+            fetchCalls();
+        }
+    };
 
     return (
-        <div className="page-container" style={{ padding: '0' }}>
-            <div className="page-header flex justify-between items-center mb-6">
+        <div className="calls-page">
+            {/* Header */}
+            <div className="page-header">
                 <div>
-                    <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Calls & Telephony</h1>
-                    <p className="text-muted">Manage your VoIP communications and call logs.</p>
+                    <h1 className="page-title">Call Logs & Dialer</h1>
+                    <p className="page-subtitle">Manage upcoming sales calls and log completed outreach</p>
                 </div>
-                <div className="flex gap-3">
-                    <button className="btn btn-secondary" onClick={() => setShowFeature(true)}><FiMic /> Voicemail</button>
-                    <button className="btn btn-primary" onClick={() => setShowFeature(true)}><FiPhoneCall /> Make a Call</button>
+                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                    <FiPlus /> Log a Call
+                </button>
+            </div>
+
+            {/* Search */}
+            <div className="filters-section card" style={{ marginBottom: '1.5rem' }}>
+                <div className="search-box">
+                    <FiSearch className="search-icon" />
+                    <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="Search calls by subject or contact name..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
             </div>
 
-            <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                <div className="card text-center p-6">
-                    <div className="text-muted mb-2">Total Calls Today</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--primary-color)' }}>{sampleDataEnabled ? '24' : '0'}</div>
-                </div>
-                <div className="card text-center p-6">
-                    <div className="text-muted mb-2">Average Duration</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--success)' }}>{sampleDataEnabled ? '04:15' : '00:00'}</div>
-                </div>
-                <div className="card text-center p-6">
-                    <div className="text-muted mb-2">Missed Calls</div>
-                    <div className="text-3xl font-bold" style={{ color: 'var(--danger)' }}>{sampleDataEnabled ? '3' : '0'}</div>
-                </div>
+            {/* Calls Grid */}
+            <div className="calls-grid">
+                {filteredCalls.map(call => (
+                    <div key={call.id} className={`call-card card ${call.status === 'completed' ? 'completed' : ''}`}>
+                        <div className="call-card-header">
+                            <div className="call-icon-box">
+                                {call.status === 'completed' ? <FiPhoneForwarded /> : <FiPhoneCall />}
+                            </div>
+                            <div className="call-actions">
+                                <button 
+                                    className={`action-btn toggle-btn ${call.status === 'completed' ? 'done' : ''}`}
+                                    onClick={() => handleToggleComplete(call)}
+                                    title="Mark as completed"
+                                >
+                                    <FiCheckCircle size={18} />
+                                </button>
+                                <button className="action-btn delete" onClick={() => handleDelete(call.id)}>
+                                    <FiTrash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="call-card-body">
+                            <h3 className="call-subject">{call.subject}</h3>
+                            {call.contact_first_name && (
+                                <p className="call-contact">
+                                    To: <strong>{call.contact_first_name} {call.contact_last_name || ''}</strong>
+                                </p>
+                            )}
+                            <p className="call-desc">{call.description || 'No notes provided.'}</p>
+                        </div>
+
+                        <div className="call-card-footer">
+                            <span className="call-time">
+                                <FiClock size={12} /> 
+                                {call.due_date ? new Date(call.due_date).toLocaleDateString() : 'Unscheduled'}
+                            </span>
+                            <span className={`status-pill ${call.status}`}>
+                                {call.status}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+
+                {filteredCalls.length === 0 && !loading && (
+                    <div className="empty-state-box" style={{ gridColumn: '1 / -1' }}>
+                        <FiPhone size={32} />
+                        <p>No call logs found. Start dialing and log your first call!</p>
+                    </div>
+                )}
             </div>
 
-            <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-                <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                    <h3 className="font-bold">Recent Call Logs</h3>
-                </div>
-                <div className="table-responsive">
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Type</th>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Contact</th>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Company</th>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Duration</th>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Time</th>
-                                <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentCalls.map(call => (
-                                <tr key={call.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                    <td style={{ padding: '1rem' }}>
-                                        {call.type === 'incoming' && <FiPhoneIncoming style={{ color: 'var(--success)' }} />}
-                                        {call.type === 'outgoing' && <FiPhoneForwarded style={{ color: 'var(--primary-color)' }} />}
-                                        {call.type === 'missed' && <FiPhoneMissed style={{ color: 'var(--danger)' }} />}
-                                    </td>
-                                    <td style={{ padding: '1rem', fontWeight: 500 }}>{call.contact}</td>
-                                    <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{call.company}</td>
-                                    <td style={{ padding: '1rem' }}>{call.duration}</td>
-                                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{call.time}</td>
-                                    <td style={{ padding: '1rem' }}>
-                                        <button className="btn-icon" title="Call Back"><FiPhoneCall /></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            {/* LOG CALL MODAL */}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="ai-modal-overlay" onClick={() => setIsModalOpen(false)}>
+                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="ai-modal-box" onClick={e => e.stopPropagation()}>
+                            <div className="ai-modal-header">
+                                <h3><FiPhoneCall style={{ color: '#10b981' }} /> Log or Schedule a Call</h3>
+                                <button className="ai-modal-close" onClick={() => setIsModalOpen(false)}><FiX /></button>
+                            </div>
+                            <form onSubmit={handleCreateCall} className="auth-form">
+                                <div className="input-field">
+                                    <label>Call Subject *</label>
+                                    <input 
+                                        type="text" 
+                                        className="input-styled" 
+                                        required 
+                                        placeholder="e.g. Follow-up on pricing proposal" 
+                                        value={formData.subject} 
+                                        onChange={e => setFormData({...formData, subject: e.target.value})} 
+                                    />
+                                </div>
+                                <div className="form-row">
+                                    <div className="input-field">
+                                        <label>Call Status</label>
+                                        <select className="input-styled" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                                            <option value="pending">Scheduled (Upcoming)</option>
+                                            <option value="completed">Completed (Logged)</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-field">
+                                        <label>Date & Time</label>
+                                        <input 
+                                            type="datetime-local" 
+                                            className="input-styled" 
+                                            value={formData.due_date} 
+                                            onChange={e => setFormData({...formData, due_date: e.target.value})} 
+                                        />
+                                    </div>
+                                </div>
+                                <div className="input-field">
+                                    <label>Call Notes / Outcome</label>
+                                    <textarea 
+                                        className="input-styled" 
+                                        rows="3" 
+                                        placeholder="Summarize the conversation..." 
+                                        value={formData.description} 
+                                        onChange={e => setFormData({...formData, description: e.target.value})} 
+                                    />
+                                </div>
+                                <div className="ai-modal-footer" style={{ marginTop: '1rem' }}>
+                                    <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                                    <button type="submit" className="btn btn-primary" disabled={submitting}>
+                                        {submitting ? 'Saving...' : 'Save Call Log'}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

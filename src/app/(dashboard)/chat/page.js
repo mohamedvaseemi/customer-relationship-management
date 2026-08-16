@@ -1,125 +1,283 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
-import { FiSend, FiPlus, FiHash } from 'react-icons/fi';
-import { chatAPI } from '@/api/api';
-import { useAuth } from '@/context/AuthContext';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { 
+    FiHash, FiSend, FiPlus, FiSmile, 
+    FiUsers, FiLock, FiX, FiCheck
+} from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import Cookies from 'js-cookie';
 import '@/styles/Chat.css';
 
-export default function Chat() {
-    const { user } = useAuth();
-    const [channels, setChannels] = useState([
-        { id: 1, name: 'General', type: 'team' },
-        { id: 2, name: 'Sales-Team', type: 'team' },
-        { id: 3, name: 'Customer-Success', type: 'team' }
-    ]);
-    const [activeChannel, setActiveChannel] = useState(channels[0]);
+export default function TeamChatPage() {
+    const [channels, setChannels] = useState([]);
+    const [activeChannel, setActiveChannel] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [inputText, setInputText] = useState('');
-    const scrollRef = useRef();
+    const [newMessage, setNewMessage] = useState('');
+    const [sending, setSending] = useState(false);
+    
+    // Create Channel Modal
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newChannelName, setNewChannelName] = useState('');
+    const [newChannelDesc, setNewChannelDesc] = useState('');
+    const [isPrivate, setIsPrivate] = useState(false);
+    
+    const messagesEndRef = useRef(null);
 
-    useEffect(() => {
-        if (activeChannel) {
-            fetchMessages(activeChannel.id);
+    // Auto-scroll to bottom of chat
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // 1. Fetch All Channels
+    const fetchChannels = useCallback(async () => {
+        try {
+            const token = Cookies.get('token');
+            const res = await fetch('/api/chat/channels', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            const channelList = data.channels || [];
+            setChannels(channelList);
+            
+            if (channelList.length > 0 && !activeChannel) {
+                setActiveChannel(channelList[0]);
+            }
+        } catch (err) {
+            console.error('Failed to load channels:', err);
         }
     }, [activeChannel]);
 
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [messages]);
-
-    const fetchMessages = async (channelId) => {
+    // 2. Fetch Messages for Active Channel
+    const fetchMessages = useCallback(async (channelId) => {
+        if (!channelId) return;
         try {
-            const response = await chatAPI.getMessages(channelId);
-            setMessages(response.data.messages || []);
-        } catch (error) {
-            console.error('Error fetching messages:', error);
-            setMessages([
-                { id: 1, sender_id: 0, sender_name: 'Bot', content: `Welcome to the ${activeChannel.name} channel!`, created_at: new Date() }
-            ]);
+            const token = Cookies.get('token');
+            const res = await fetch(`/api/chat/messages?channel_id=${channelId}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            const data = await res.json();
+            setMessages(data.messages || []);
+            setTimeout(scrollToBottom, 100);
+        } catch (err) {
+            console.error('Failed to load messages:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchChannels();
+    }, [fetchChannels]);
+
+    useEffect(() => {
+        if (activeChannel?.id) {
+            fetchMessages(activeChannel.id);
+            // Polling for live incoming messages every 4 seconds
+            const interval = setInterval(() => fetchMessages(activeChannel.id), 4000);
+            return () => clearInterval(interval);
+        }
+    }, [activeChannel, fetchMessages]);
+
+    // 3. Send Message
+    const handleSendMessage = async (e) => {
+        e?.preventDefault();
+        if (!newMessage.trim() || !activeChannel?.id || sending) return;
+
+        setSending(true);
+        const optimisticText = newMessage;
+        setNewMessage('');
+
+        try {
+            const token = Cookies.get('token');
+            const res = await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ channel_id: activeChannel.id, message: optimisticText })
+            });
+            const data = await res.json();
+            if (data.message) {
+                setMessages(prev => [...prev, data.message]);
+                setTimeout(scrollToBottom, 50);
+            }
+        } catch (err) {
+            console.error('Failed to send message:', err);
+        } finally {
+            setSending(false);
         }
     };
 
-    const handleSend = async (e) => {
+    // 4. Create Channel
+    const handleCreateChannel = async (e) => {
         e.preventDefault();
-        if (!inputText.trim()) return;
-
-        const newMessage = {
-            channel_id: activeChannel.id,
-            content: inputText,
-            sender_id: user?.id || 999,
-            sender_name: user?.name || 'Me',
-            created_at: new Date()
-        };
-
-        setMessages([...messages, newMessage]);
-        setInputText('');
+        if (!newChannelName.trim()) return;
 
         try {
-            await chatAPI.sendMessage({
-                channel_id: activeChannel.id,
-                content: inputText
+            const token = Cookies.get('token');
+            const res = await fetch('/api/chat/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ name: newChannelName, description: newChannelDesc, is_private: isPrivate })
             });
-        } catch (error) {
-            console.error('Error sending message:', error);
+            const data = await res.json();
+            if (data.channel) {
+                setChannels(prev => [...prev, data.channel]);
+                setActiveChannel(data.channel);
+                setIsModalOpen(false);
+                setNewChannelName('');
+                setNewChannelDesc('');
+                setIsPrivate(false);
+            }
+        } catch (err) {
+            console.error('Failed to create channel:', err);
         }
+    };
+
+    const getInitials = (name) => {
+        if (!name) return 'U';
+        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     };
 
     return (
-        <div className="chat-page-container">
-            <aside className="chat-sidebar">
-                <div className="p-4 border-bottom flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
-                    <h2 className="font-bold" style={{ color: 'var(--text-primary)' }}>Channels</h2>
-                    <button className="action-btn" style={{ padding: '6px' }}><FiPlus /></button>
+        <div className="chat-app-container">
+            {/* Left Sidebar: Channels & Teams */}
+            <div className="chat-sidebar">
+                <div className="chat-sidebar-header">
+                    <div className="workspace-info">
+                        <span className="workspace-name">Team Channels</span>
+                        <span className="workspace-status"><span className="online-dot"/> Live Stream</span>
+                    </div>
+                    <button className="create-channel-btn" onClick={() => setIsModalOpen(true)} title="Create Channel">
+                        <FiPlus size={16} />
+                    </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2" style={{ padding: '8px' }}>
-                    {channels.map(channel => (
-                        <div
-                            key={channel.id}
-                            className={`nav-item ${activeChannel?.id === channel.id ? 'active' : ''}`}
-                            onClick={() => setActiveChannel(channel)}
-                            style={{ cursor: 'pointer', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px' }}
-                        >
-                            <FiHash className="nav-icon" />
-                            <span className="nav-label">{channel.name}</span>
-                        </div>
-                    ))}
+
+                <div className="channels-section">
+                    <span className="channel-group-title">Public Feeds</span>
+                    <div className="channel-list">
+                        {channels.map(channel => (
+                            <button 
+                                key={channel.id}
+                                className={`channel-item ${activeChannel?.id === channel.id ? 'active' : ''}`}
+                                onClick={() => setActiveChannel(channel)}
+                            >
+                                {channel.is_private ? <FiLock size={14} className="channel-icon" /> : <FiHash size={14} className="channel-icon" />}
+                                <span className="channel-name">{channel.name}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            </aside>
+            </div>
 
-            <main className="chat-main" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <header className="chat-header" style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FiHash className="text-primary" style={{ color: 'var(--primary-color)' }} />
-                    <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{activeChannel?.name}</h2>
-                </header>
-
-                <div className="message-list" ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                    {messages.map((msg, idx) => (
-                        <div key={idx} className={`message-item ${msg.sender_id === (user?.id || 999) ? 'message-own' : 'message-other'}`} style={{ marginBottom: '12px' }}>
-                            {msg.sender_id !== (user?.id || 999) && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>{msg.sender_name}</div>}
-                            <div style={{ wordBreak: 'break-word' }}>{msg.content}</div>
-                            <div className="text-[10px] mt-1 opacity-70 text-right" style={{ fontSize: '10px', opacity: 0.7, textAlign: 'right', marginTop: '4px' }}>
-                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {/* Main Chat Center Pane */}
+            <div className="chat-main-pane">
+                {activeChannel ? (
+                    <>
+                        {/* Chat Header */}
+                        <div className="chat-main-header">
+                            <div className="chat-header-title">
+                                <div className="channel-title-box">
+                                    {activeChannel.is_private ? <FiLock size={18} /> : <FiHash size={18} />}
+                                    <h2>{activeChannel.name}</h2>
+                                </div>
+                                <p className="channel-desc">{activeChannel.description || 'Welcome to the channel!'}</p>
                             </div>
                         </div>
-                    ))}
-                </div>
 
-                <form className="chat-input-area" onSubmit={handleSend} style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '12px' }}>
-                    <input
-                        type="text"
-                        className="chat-input"
-                        placeholder="Type a message..."
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
-                    />
-                    <button type="submit" className="btn btn-primary px-4" style={{ padding: '0 16px' }}>
-                        <FiSend />
-                    </button>
-                </form>
-            </main>
+                        {/* Messages Stream */}
+                        <div className="chat-messages-container">
+                            {messages.map((msg, index) => {
+                                const isFirstFromSender = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
+
+                                return (
+                                    <div key={msg.id || index} className={`chat-message-row ${isFirstFromSender ? 'with-header' : 'compact'}`}>
+                                        {isFirstFromSender ? (
+                                            <div className="msg-avatar">
+                                                {getInitials(msg.sender_name)}
+                                            </div>
+                                        ) : (
+                                            <div className="msg-avatar-placeholder" />
+                                        )}
+
+                                        <div className="msg-content-wrapper">
+                                            {isFirstFromSender && (
+                                                <div className="msg-header">
+                                                    <span className="sender-name">{msg.sender_name || 'Team Member'}</span>
+                                                    <span className="msg-time">
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className="msg-body-text">{msg.message}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Input Box */}
+                        <div className="chat-input-wrapper">
+                            <form onSubmit={handleSendMessage} className="chat-input-form">
+                                <input 
+                                    type="text" 
+                                    placeholder={`Message #${activeChannel.name}...`} 
+                                    value={newMessage} 
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    autoFocus
+                                />
+                                <button type="submit" className="send-msg-btn" disabled={!newMessage.trim() || sending}>
+                                    <FiSend size={16} />
+                                </button>
+                            </form>
+                        </div>
+                    </>
+                ) : (
+                    <div className="empty-chat-state">
+                        <FiUsers size={48} />
+                        <h3>No Channel Selected</h3>
+                        <p>Select a channel on the left to start collaborating.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Create Channel Modal */}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="ai-modal-overlay" onClick={() => setIsModalOpen(false)}>
+                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="ai-modal-box" onClick={e => e.stopPropagation()}>
+                            <div className="ai-modal-header">
+                                <h3><FiHash style={{ color: 'var(--primary-color)' }} /> Create New Channel</h3>
+                                <button className="ai-modal-close" onClick={() => setIsModalOpen(false)}><FiX /></button>
+                            </div>
+                            <form onSubmit={handleCreateChannel} className="auth-form">
+                                <div className="input-field">
+                                    <label>Channel Name *</label>
+                                    <input 
+                                        type="text" 
+                                        className="input-styled" 
+                                        required 
+                                        placeholder="e.g. deals-q4, announcements" 
+                                        value={newChannelName} 
+                                        onChange={e => setNewChannelName(e.target.value)} 
+                                    />
+                                </div>
+                                <div className="input-field">
+                                    <label>Description (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        className="input-styled" 
+                                        placeholder="What is this channel about?" 
+                                        value={newChannelDesc} 
+                                        onChange={e => setNewChannelDesc(e.target.value)} 
+                                    />
+                                </div>
+                                <div className="ai-modal-footer">
+                                    <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                                    <button type="submit" className="btn btn-primary" disabled={!newChannelName.trim()}>
+                                        Create Channel
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

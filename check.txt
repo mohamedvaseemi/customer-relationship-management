@@ -1,0 +1,29 @@
+ Complete Application Feature List
+ Unga project-la irukka 11 Core Features: 
+ Feature 1: Authentication & Role-Based Access Control (RBAC) 
+ Feature 2: Dashboard Analytics & AI Sales Copilot  
+ Feature 3: Leads Management & Kanban Board  
+ Feature 4: Deals & Pipeline Management  
+ Feature 5: Contacts & Accounts (Companies)  
+ Feature 6: Activities, Tasks & Calendar  
+ Feature 7: Support Tickets & Service Desk  
+ Feature 8: Team Chat & Internal Messaging      
+ Feature 9: Workflows & Automation Engine  
+ Feature 10: Document & File Management  
+ Feature 11: Custom Fields & Company Settings  
+
+ Changes Happened:
+ schema.sql
+ src/lib/auth.js
+ src/app/api/users/route.js
+ src/app/api/dashboard/stats/route.js
+ src/app/api/intelligence/route.js
+ src/app/api/leads/route.js
+ src/app/api/leads/[id]/route.js
+ src/app/api/leads/stats/route.js
+ src/components/DashboardClient.js
+ src/app/deals/page.js
+ src/app/api/deals/route.js
+ src/app/api/deals/[id]/route.js
+ src/styles/Deals.css
+ src/app

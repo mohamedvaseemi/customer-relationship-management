@@ -1,278 +1,280 @@
 "use client";
-import React, { useState, useRef } from 'react';
-import {
-    FiFileText, FiUploadCloud, FiFolder, FiMoreVertical,
-    FiDownload, FiX, FiCheckCircle, FiTrash2
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { 
+    FiUploadCloud, FiSearch, FiTrash2, FiDownload, 
+    FiFileText, FiImage, FiFile, FiLink, FiX, FiCheckCircle
 } from 'react-icons/fi';
-import { useAuth } from '@/context/AuthContext';
-import { documentsAPI } from '@/api/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import Cookies from 'js-cookie';
+import ConfirmModal from '@/components/ConfirmModal';
+import '@/styles/Documents.css';
 
-const initialMockDocs = [
-    { id: 1, name: 'Enterprise License Agreement.pdf', size: '2.4 MB', date: 'Oct 24, 2026', type: 'pdf' },
-    { id: 2, name: 'Q3 Marketing Assets.zip', size: '15.8 MB', date: 'Oct 22, 2026', type: 'zip' },
-    { id: 3, name: 'TechFlow Proposal Draft.docx', size: '1.1 MB', date: 'Oct 20, 2026', type: 'word' },
-];
-
-export default function Documents() {
-    const { sampleDataEnabled } = useAuth();
-
-    // Core State
-    const [documents, setDocuments] = useState(sampleDataEnabled ? initialMockDocs : []);
-
-    // Upload Modal & Drag-Drop State
+export default function DocumentsPage() {
+    const [documents, setDocuments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // UI Modals & Upload State
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const [uploadingFile, setUploadingFile] = useState(null);
-    const [uploadProgress, setUploadProgress] = useState(0);
-
+    const [uploadMethod, setUploadMethod] = useState('file'); // 'file' or 'url'
+    const [submitting, setSubmitting] = useState(false);
+    const [dragActive, setDragActive] = useState(false);
     const fileInputRef = useRef(null);
+    
+    // Custom Confirm Modal
+    const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, idToDelete: null });
 
-    // --- File Handling Logic --- //
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
+    // Form Data
+    const [name, setName] = useState('');
+    const [fileUrl, setFileUrl] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
 
-    const handleDragLeave = (e) => {
+    const fetchDocuments = useCallback(async () => {
+        setLoading(true);
+        try {
+            const token = Cookies.get('token');
+            const res = await fetch('/api/documents', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            setDocuments(data.documents || []);
+        } catch (err) {
+            console.error('Failed to load documents:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+
+    const filteredDocs = useMemo(() => {
+        return documents.filter(doc => (doc.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [documents, searchQuery]);
+
+    // Drag & Drop Handlers
+    const handleDrag = (e) => {
         e.preventDefault();
-        setIsDragging(false);
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+        else if (e.type === "dragleave") setDragActive(false);
     };
 
     const handleDrop = (e) => {
         e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            processFile(e.dataTransfer.files[0]);
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelection(e.dataTransfer.files[0]);
         }
     };
 
-    const handleFileSelect = (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            processFile(e.target.files[0]);
-        }
+    const handleFileSelection = (file) => {
+        setSelectedFile(file);
+        if (!name) setName(file.name.split('.')[0]); // Auto-fill name
     };
 
-    const processFile = (file) => {
-        setUploadingFile(file);
-        setUploadProgress(0);
-
-        // Simulate API Upload Progress
-        const interval = setInterval(() => {
-            setUploadProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    finalizeUpload(file);
-                    return 100;
-                }
-                return prev + 15; // Speed of fake upload
-            });
-        }, 300);
-    };
-
-    const finalizeUpload = async (file) => {
+    // Upload Logic
+    const handleUpload = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        
         try {
-            // 1. Prepare the file data for upload
+            const token = Cookies.get('token');
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('name', name);
+            
+            if (uploadMethod === 'file') {
+                if (!selectedFile) return alert("Please select a file.");
+                formData.append('file', selectedFile);
+                formData.append('type', selectedFile.type || 'document');
+            } else {
+                if (!fileUrl) return alert("Please provide a URL.");
+                formData.append('file_url', fileUrl);
+                formData.append('type', 'link');
+            }
 
-            // You can append extra metadata if your API requires it
-            // formData.append('fileName', file.name);
+            await fetch('/api/documents', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
 
-            // 2. Make the API call
-            const response = await documentsAPI.upload(formData);
-
-            // 3. Extract the newly created document from your backend response
-            // (Adjust 'response.data.document' based on your actual JSON response structure)
-            const newDoc = response.data.document;
-
-            // 4. Update the UI state with the real data
-            setDocuments(prev => [newDoc, ...prev]);
-
-        } catch (error) {
-            console.error('Error uploading document:', error);
-            // Optional: Add a toast notification here to tell the user the upload failed
-        } finally {
-            // 5. Clean up the UI states whether the upload succeeded or failed
-            setUploadingFile(null);
             setIsUploadModalOpen(false);
-            setUploadProgress(0);
+            resetForm();
+            fetchDocuments();
+        } catch (err) {
+            console.error('Upload failed:', err);
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    const handleDelete = (id) => {
-        // TODO: Call your Next.js DELETE API here
-        setDocuments(prev => prev.filter(doc => doc.id !== id));
+    const resetForm = () => {
+        setName('');
+        setFileUrl('');
+        setSelectedFile(null);
+        setUploadMethod('file');
+    };
+
+    // Delete Logic
+    const promptDelete = (id) => setConfirmDialog({ isOpen: true, idToDelete: id });
+    const executeDelete = async () => {
+        const id = confirmDialog.idToDelete;
+        try {
+            setDocuments(prev => prev.filter(d => d.id !== id));
+            const token = Cookies.get('token');
+            await fetch(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+        } catch (err) {
+            console.error('Delete failed:', err);
+            fetchDocuments();
+        }
+    };
+
+    const getFileIcon = (type) => {
+        if (!type) return <FiFile className="icon-blue" />;
+        if (type.includes('pdf')) return <FiFileText className="icon-red" />;
+        if (type.includes('image') || type.includes('png') || type.includes('jpg')) return <FiImage className="icon-green" />;
+        if (type === 'link') return <FiLink className="icon-purple" />;
+        return <FiFile className="icon-blue" />;
+    };
+
+    const formatBytes = (bytes) => {
+        if (bytes === 0) return 'External Link';
+        const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     return (
-        <div className="page-container" style={{ padding: '0', position: 'relative' }}>
-            {/* Header Section */}
-            <div className="page-header flex justify-between items-center mb-6">
+        <div className="documents-page">
+            <div className="page-header">
                 <div>
-                    <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Document Library</h1>
-                    <p className="text-muted">Securely manage your files, proposals, and contracts.</p>
+                    <h1 className="page-title">File Repository</h1>
+                    <p className="page-subtitle">Securely store and share contracts, assets, and links</p>
                 </div>
-                <div className="flex gap-3">
-                    <button className="btn btn-secondary">
-                        <FiFolder /> New Folder
-                    </button>
-                    <button className="btn btn-primary" onClick={() => setIsUploadModalOpen(true)}>
-                        <FiUploadCloud /> Upload File
-                    </button>
+                <button className="btn btn-primary premium-shadow" onClick={() => setIsUploadModalOpen(true)}>
+                    <FiUploadCloud /> Upload New File
+                </button>
+            </div>
+
+            <div className="filters-section card glass-effect">
+                <div className="search-box">
+                    <FiSearch className="search-icon" />
+                    <input type="text" placeholder="Search documents..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                <div className="card flex items-center gap-4 p-4">
-                    <div className="gradient-primary text-white p-4" style={{ borderRadius: '12px' }}>
-                        <FiFolder size={24} />
-                    </div>
-                    <div>
-                        <div className="text-muted">Shared with me</div>
-                        <div className="font-bold text-lg">{sampleDataEnabled ? '12' : '0'} Folders</div>
-                    </div>
-                </div>
-                <div className="card flex items-center gap-4 p-4">
-                    <div className="gradient-primary text-white p-4" style={{ borderRadius: '12px', background: 'var(--success, #10b981)' }}>
-                        <FiFileText size={24} />
-                    </div>
-                    <div>
-                        <div className="text-muted">Total Files</div>
-                        <div className="font-bold text-lg">{documents.length} Files</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Documents Table */}
-            <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-                <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'var(--border-color)' }}>
-                    <h3 className="font-bold">All Documents</h3>
-                </div>
-
-                {documents.length === 0 ? (
-                    <div className="p-10 text-center flex flex-col items-center justify-center">
-                        <div className="p-4 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                            <FiFileText size={32} className="text-gray-400" />
+            {/* Document Grid - Premium UI */}
+            <div className="docs-grid">
+                {filteredDocs.map(doc => (
+                    <div key={doc.id} className="doc-card">
+                        <div className="doc-card-inner">
+                            <div className="doc-icon-wrapper">
+                                {getFileIcon(doc.type)}
+                            </div>
+                            <div className="doc-info">
+                                <h4 className="doc-name" title={doc.name}>{doc.name}</h4>
+                                <span className="doc-meta">
+                                    {formatBytes(doc.size_bytes)} • By {doc.uploader_name || 'System'}
+                                </span>
+                            </div>
                         </div>
-                        <h4 className="font-bold text-lg mb-2">No documents yet</h4>
-                        <p className="text-muted mb-4 max-w-md">Upload your first document to start managing your files in the CRM.</p>
-                        <button className="btn btn-primary" onClick={() => setIsUploadModalOpen(true)}>
-                            <FiUploadCloud /> Upload First File
-                        </button>
+                        <div className="doc-hover-actions">
+                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="action-btn-circle view" title="View/Download">
+                                <FiDownload />
+                            </a>
+                            <button className="action-btn-circle delete" onClick={() => promptDelete(doc.id)} title="Delete">
+                                <FiTrash2 />
+                            </button>
+                        </div>
                     </div>
-                ) : (
-                    <div className="table-responsive">
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Name</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Size</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500 }}>Last Modified</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 500, textAlign: 'right' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {documents.map(doc => (
-                                    <tr key={doc.id} style={{ borderBottom: '1px solid var(--border-color)' }} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                        <td style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <FiFileText style={{ color: 'var(--primary-color)' }} />
-                                            <span className="font-medium">{doc.name}</span>
-                                        </td>
-                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{doc.size}</td>
-                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{doc.date}</td>
-                                        <td style={{ padding: '1rem', textAlign: 'right' }}>
-                                            <button className="btn-icon mr-2" title="Download"><FiDownload /></button>
-                                            <button className="btn-icon text-red-500 hover:text-red-700" title="Delete" onClick={() => handleDelete(doc.id)}>
-                                                <FiTrash2 />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                ))}
+                
+                {filteredDocs.length === 0 && !loading && (
+                    <div className="empty-state-box">
+                        <div className="empty-icon-pulse"><FiUploadCloud size={40} /></div>
+                        <h3>No documents found</h3>
+                        <p>Upload PDFs, images, or link external resources.</p>
+                        <button className="btn btn-primary" onClick={() => setIsUploadModalOpen(true)}>Upload Now</button>
                     </div>
                 )}
             </div>
 
-            {/* Upload Modal Overlay */}
-            {isUploadModalOpen && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
-                }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '500px', padding: '24px', position: 'relative' }}>
-                        <button
-                            onClick={() => setIsUploadModalOpen(false)}
-                            style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                            <FiX size={24} className="text-muted hover:text-gray-800" />
-                        </button>
+            <ConfirmModal 
+                isOpen={confirmDialog.isOpen}
+                title="Delete Document?"
+                message="This will permanently remove the file from your repository. This action cannot be undone."
+                onConfirm={executeDelete}
+                onCancel={() => setConfirmDialog({ isOpen: false, idToDelete: null })}
+                confirmText="Yes, delete it"
+            />
 
-                        <h2 className="text-xl font-bold mb-2">Upload Document</h2>
-                        <p className="text-muted mb-6">Upload files to your CRM storage.</p>
-
-                        {!uploadingFile ? (
-                            <div
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                onClick={() => fileInputRef.current?.click()}
-                                style={{
-                                    border: `2px dashed ${isDragging ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                    borderRadius: '12px', padding: '40px 20px', textAlign: 'center',
-                                    cursor: 'pointer', backgroundColor: isDragging ? 'rgba(var(--primary-rgb), 0.05)' : 'transparent',
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileSelect}
-                                    style={{ display: 'none' }}
-                                />
-                                <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', marginBottom: '16px' }}>
-                                    <FiUploadCloud size={28} />
-                                </div>
-                                <h3 className="font-bold mb-1">Click or drag file to this area to upload</h3>
-                                <p className="text-sm text-muted">Support for a single or bulk upload. Strictly prohibit from uploading company data or other band files.</p>
+            {/* AWESOME UPLOAD MODAL */}
+            <AnimatePresence>
+                {isUploadModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="ai-modal-overlay" onClick={() => { setIsUploadModalOpen(false); resetForm(); }}>
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="ai-modal-box upload-modal" onClick={e => e.stopPropagation()}>
+                            
+                            <div className="ai-modal-header">
+                                <h3><FiUploadCloud className="text-primary" /> Upload Resource</h3>
+                                <button className="ai-modal-close" onClick={() => { setIsUploadModalOpen(false); resetForm(); }}><FiX /></button>
                             </div>
-                        ) : (
-                            <div style={{ padding: '20px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'rgba(var(--primary-rgb), 0.1)' }}>
-                                            <FiFileText style={{ color: 'var(--primary-color)' }} size={24} />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }}>
-                                                {uploadingFile.name}
-                                            </p>
-                                            <p className="text-xs text-muted">{(uploadingFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                                        </div>
+
+                            <div className="upload-method-toggle">
+                                <button className={`method-btn ${uploadMethod === 'file' ? 'active' : ''}`} onClick={() => setUploadMethod('file')}>
+                                    <FiFileText /> Upload File
+                                </button>
+                                <button className={`method-btn ${uploadMethod === 'url' ? 'active' : ''}`} onClick={() => setUploadMethod('url')}>
+                                    <FiLink /> External URL
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleUpload} className="auth-form" style={{ paddingTop: '0.5rem' }}>
+                                
+                                {uploadMethod === 'file' ? (
+                                    <div 
+                                        className={`dropzone ${dragActive ? 'drag-active' : ''} ${selectedFile ? 'file-selected' : ''}`}
+                                        onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+                                        onClick={() => fileInputRef.current.click()}
+                                    >
+                                        <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={(e) => { if(e.target.files[0]) handleFileSelection(e.target.files[0]); }} />
+                                        
+                                        {selectedFile ? (
+                                            <div className="selected-file-info">
+                                                <FiCheckCircle size={32} color="#10b981" />
+                                                <p className="file-name">{selectedFile.name}</p>
+                                                <p className="file-size">{formatBytes(selectedFile.size)}</p>
+                                                <span className="change-file">Click to change file</span>
+                                            </div>
+                                        ) : (
+                                            <div className="drop-prompt">
+                                                <FiUploadCloud size={40} className="drop-icon" />
+                                                <p><strong>Click to upload</strong> or drag and drop</p>
+                                                <p className="hint">PDF, DOC, PNG, JPG up to 10MB</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    {uploadProgress === 100 ? <FiCheckCircle color="var(--success, #10b981)" size={24} /> : null}
+                                ) : (
+                                    <div className="input-field">
+                                        <label>External URL *</label>
+                                        <input type="url" className="input-styled" required placeholder="https://drive.google.com/..." value={fileUrl} onChange={e => setFileUrl(e.target.value)} />
+                                    </div>
+                                )}
+
+                                <div className="input-field" style={{ marginTop: '0.5rem' }}>
+                                    <label>Document Name *</label>
+                                    <input type="text" className="input-styled" required placeholder="Name this document" value={name} onChange={e => setName(e.target.value)} />
                                 </div>
 
-                                {/* Progress Bar */}
-                                <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
-                                    <div style={{
-                                        height: '100%',
-                                        width: `${uploadProgress}%`,
-                                        backgroundColor: 'var(--primary-color)',
-                                        transition: 'width 0.3s ease'
-                                    }}></div>
+                                <div className="ai-modal-footer" style={{ marginTop: '1rem', padding: '1.25rem 0 0 0', border: 'none', background: 'transparent' }}>
+                                    <button type="button" className="btn btn-secondary" onClick={() => { setIsUploadModalOpen(false); resetForm(); }}>Cancel</button>
+                                    <button type="submit" className="btn btn-primary premium-shadow" disabled={submitting || (uploadMethod === 'file' && !selectedFile)}>
+                                        {submitting ? 'Uploading to Cloud...' : 'Confirm Upload'}
+                                    </button>
                                 </div>
-                                <div className="flex justify-between mt-2 text-xs text-muted">
-                                    <span>{uploadProgress < 100 ? 'Uploading...' : 'Complete'}</span>
-                                    <span>{uploadProgress}%</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

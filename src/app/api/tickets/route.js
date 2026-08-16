@@ -2,66 +2,53 @@ import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 
-// GET all tickets
 export async function GET(req) {
     try {
         const decoded = verifyAuth(req);
-        if (!decoded) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
-        }
+        if (!decoded) return NextResponse.json({ error: 'Access denied' }, { status: 401 });
 
-        const { searchParams } = req.nextUrl;
-        const status = searchParams.get('status');
-        const priority = searchParams.get('priority');
+        // Safe query fetching tickets + contact info + assignee info
+        const result = await pool.query(
+            `SELECT t.*, 
+                    c.first_name as contact_first_name, c.last_name as contact_last_name,
+                    u.name as assigned_to_name
+             FROM tickets t
+             LEFT JOIN contacts c ON t.contact_id = c.id
+             LEFT JOIN users u ON t.assigned_to = u.id
+             ORDER BY 
+                CASE t.status 
+                    WHEN 'open' THEN 1 
+                    WHEN 'in_progress' THEN 2 
+                    WHEN 'resolved' THEN 3 
+                    ELSE 4 
+                END, 
+                t.created_at DESC`
+        );
 
-        let queryStr = `
-            SELECT t.*, c.first_name, c.last_name, 
-                   u.name as assigned_to_name
-            FROM tickets t
-            LEFT JOIN contacts c ON t.contact_id = c.id
-            LEFT JOIN users u ON t.assigned_to = u.id
-            WHERE 1=1
-        `;
-        const params = [];
-        let paramCount = 1;
-
-        if (status) {
-            queryStr += ` AND t.status = $${paramCount}`;
-            params.push(status);
-            paramCount++;
-        }
-
-        if (priority) {
-            queryStr += ` AND t.priority = $${paramCount}`;
-            params.push(priority);
-            paramCount++;
-        }
-
-        queryStr += ' ORDER BY t.created_at DESC';
-
-        const tickets = await pool.query(queryStr, params);
-        return NextResponse.json({ tickets: tickets.rows });
+        return NextResponse.json({ tickets: result.rows });
     } catch (error) {
         console.error('Get tickets error:', error);
         return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }
 
-// POST create ticket
 export async function POST(req) {
     try {
         const decoded = verifyAuth(req);
-        if (!decoded) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 401 });
-        }
+        if (!decoded) return NextResponse.json({ error: 'Access denied' }, { status: 401 });
 
         const body = await req.json();
-        const { subject, description, priority, contact_id, assigned_to } = body;
+        const { subject, description, priority, status, contact_id, assigned_to } = body;
+
+        if (!subject) return NextResponse.json({ error: 'Subject is required' }, { status: 400 });
 
         const result = await pool.query(
-            `INSERT INTO tickets (subject, description, priority, contact_id, assigned_to, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [subject, description, priority || 'medium', contact_id, assigned_to, decoded.id]
+            `INSERT INTO tickets (subject, description, priority, status, contact_id, assigned_to, created_by) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [
+                subject, description || null, priority || 'medium', status || 'open', 
+                contact_id || null, assigned_to || decoded.id, decoded.id
+            ]
         );
 
         return NextResponse.json({ message: 'Ticket created', ticket: result.rows[0] }, { status: 201 });

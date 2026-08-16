@@ -3,33 +3,19 @@ import jwt from 'jsonwebtoken';
 export const verifyAuth = (req) => {
     try {
         let token = null;
-
-        // 1. Check Authorization header
         const authHeader = req.headers?.get('authorization');
+        
         if (authHeader && authHeader.startsWith('Bearer ')) {
-            const rawToken = authHeader.substring(7).trim();
-            if (rawToken && rawToken !== 'undefined' && rawToken !== 'null') {
-                token = rawToken;
-            }
+            token = authHeader.substring(7).trim();
         }
 
-        // 2. Fallback to Cookie
         if (!token && req.cookies) {
-            const cookieToken = req.cookies.get('token')?.value;
-            if (cookieToken && cookieToken !== 'undefined' && cookieToken !== 'null') {
-                token = cookieToken;
-            }
+            token = req.cookies.get('token')?.value;
         }
 
-        if (token) {
+        if (token && token !== 'undefined' && token !== 'null') {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            return decoded;
-        }
-
-        // API key fallback – routes will validate the raw key via utils
-        const apiKey = req.headers?.get('x-api-key');
-        if (apiKey) {
-            return { apiKey };
+            return decoded; // Returns { id, email, role, company_id }
         }
 
         return null;
@@ -38,7 +24,23 @@ export const verifyAuth = (req) => {
     }
 };
 
-export const adminOnly = (user) => {
-    return user && user.role === 'admin';
+// Guard: Company Admin Role Verification
+export const isCompanyAdmin = (user) => {
+    return user && (user.role === 'admin' || user.role === 'superadmin');
 };
 
+// Helper: Get SQL Condition for Tenant Isolation
+export const getTenantCondition = (user, tableAlias = '') => {
+    const prefix = tableAlias ? `${tableAlias}.` : '';
+    
+    // Superadmin monitors everything across all companies
+    if (user.role === 'superadmin') {
+        return { sql: '1=1', params: [] };
+    }
+
+    // Company Admin & Employee can only see data belonging to their company_id
+    return {
+        sql: `${prefix}company_id = $1`,
+        params: [user.company_id]
+    };
+};

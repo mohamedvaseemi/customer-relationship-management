@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 
-// GET all leads
 export async function GET(req) {
     try {
         const decoded = verifyAuth(req);
@@ -50,11 +49,10 @@ export async function GET(req) {
         return NextResponse.json({ leads: leads.rows });
     } catch (error) {
         console.error('Get leads error:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        return NextResponse.json({ error: 'Server error', leads: [] }, { status: 500 });
     }
 }
 
-// POST create lead
 export async function POST(req) {
     try {
         const decoded = verifyAuth(req);
@@ -74,9 +72,9 @@ export async function POST(req) {
                 expected_close_date, probability, assigned_to, notes, created_by
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
             [
-                contact_id, title, value, currency || 'USD', status || 'new',
-                priority || 'medium', source, expected_close_date, probability || 50,
-                assigned_to, notes, decoded.id
+                contact_id || null, title, value || 0.00, currency || 'USD', status || 'new',
+                priority || 'medium', source || null, expected_close_date || null, probability || 50,
+                assigned_to || decoded.id, notes || null, decoded.id
             ]
         );
 
