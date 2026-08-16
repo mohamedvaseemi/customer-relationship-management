@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { verifyAuth, adminOnly } from '@/lib/auth';
+import { verifyAuth} from '@/lib/auth';
 
 export async function PATCH(req, { params }) {
     const user = verifyAuth(req);
-    if (!user || !adminOnly(user)) {
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
@@ -29,7 +29,7 @@ export async function PATCH(req, { params }) {
 
 export async function DELETE(req, { params }) {
     const user = verifyAuth(req);
-    if (!user || !adminOnly(user)) {
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
