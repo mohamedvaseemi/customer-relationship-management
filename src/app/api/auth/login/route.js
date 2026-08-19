@@ -1,51 +1,59 @@
 import { NextResponse } from 'next/server';
+import { pool } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { pool } from '@/lib/db';
 
 export async function POST(req) {
     try {
-        const { email, password } = await req.json();
+        const body = await req.json();
+        const { email, password } = body;
 
-        // Find user
-        const users = await pool.query(
-            'SELECT * FROM users WHERE email = $1',
+        // 1. Check for empty inputs
+        if (!email?.trim()) {
+            console.log('🔴 Login Rejected: Missing email');
+            return NextResponse.json({ error: 'Email required' }, { status: 400 });
+        }
+
+        // 2. Fetch user with is_google_login flag
+        const result = await pool.query(
+            'SELECT id, name, email, password, role, is_google_login FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))', 
             [email]
         );
+        const user = result.rows[0];
 
-        if (users.rows.length === 0) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 400 });
+        if (!user) {
+            return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
         }
 
-        const user = users.rows[0];
+        // 3. Reject if account is registered via Google
+        if (user.is_google_login && !user.password) {
+            return NextResponse.json({ 
+                error: 'This account uses Google Sign-In. Please click "Sign in with Google".' 
+            }, { status: 400 });
+        }
 
-        // Check password
-        const isMatch = await bcrypt.compare(password, user.password);
-
+        // 4. Verify password for manual accounts
+        const isMatch = await bcrypt.compare(String(password), String(user.password));
         if (!isMatch) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 400 });
+            return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
         }
 
-        // Generate token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'kibon-crm-secret-key',
             { expiresIn: '7d' }
         );
 
-        return NextResponse.json({
-            message: 'Login successful',
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                avatar: user.avatar
-            }
-        });
+        delete user.password;
+
+        return NextResponse.json({ 
+            message: 'Login successful', 
+            token, 
+            user 
+        }, { status: 200 });
+
     } catch (error) {
-        console.error('Login error:', error);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        console.error('Login Error:', error);
+        return NextResponse.json({ error: 'Server error during login' }, { status: 500 });
     }
 }

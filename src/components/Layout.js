@@ -77,7 +77,6 @@ const Layout = ({ children }) => {
     const adminItems = [];
     if (user?.role === 'admin') {
         adminItems.push({ path: '/users', icon: FiUsers, label: 'User Management' });
-        adminItems.push({ path: '/monitoring', icon: FiActivity, label: 'App Monitoring' });
     }
     // New Standalone Pages
     adminItems.push({ path: '/api-keys', icon: FiKey, label: 'API Keys' });

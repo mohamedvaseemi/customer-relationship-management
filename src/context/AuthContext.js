@@ -1,124 +1,49 @@
+// src/context/AuthContext.js
 "use client";
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { authAPI } from '../api/api';
-import Cookies from 'js-cookie';
+import { createContext, useContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
-const getInitialToken = () => {
-    if (typeof window !== 'undefined') {
-        return Cookies.get('token') || null;
-    }
-    return null;
-};
-
-const getInitialSampleData = () => {
-    if (typeof window !== 'undefined') {
-        const saved = Cookies.get('sampleDataEnabled');
-        return saved === 'true';
-    }
-    return false;
-};
-
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState(getInitialToken);
-    const [sampleDataEnabled, setSampleDataEnabled] = useState(getInitialSampleData);
-
-    const loadUser = useCallback(async () => {
-        try {
-            const response = await authAPI.getCurrentUser();
-            setUser(response.data.user);
-        } catch (error) {
-            // Silently handle
-            setToken(null);
-            if (typeof window !== 'undefined') {
-                Cookies.remove('token');
-            }
-        } finally {
-            setLoading(false);
-        }
-    }, []);
 
     useEffect(() => {
-        if (token) {
-            loadUser();
-        } else {
-            setLoading(false);
+        const storedUser = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        if (storedUser && token) {
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch (e) {
+                console.error(e);
+            }
         }
-    }, [token, loadUser]);
+        setLoading(false);
+    }, []);
 
-    const login = async (credentials) => {
-        const response = await authAPI.login(credentials);
-        const { token: newToken, user: newUser } = response.data;
-        if (typeof window !== 'undefined') {
-            Cookies.set('token', newToken, { expires: 7 });
-        }
-        setToken(newToken);
-        setUser(newUser);
-        return response.data;
-    };
-
-    const register = async (userData) => {
-        const response = await authAPI.register(userData);
-        const { token: newToken, user: newUser } = response.data;
-        if (typeof window !== 'undefined') {
-            Cookies.set('token', newToken, { expires: 7 });
-        }
-        setToken(newToken);
-        setUser(newUser);
-        return response.data;
-    };
-
-    const loginWithGoogle = async (credential) => {
-        const response = await authAPI.googleAuth(credential);
-        const { token: newToken, user: newUser } = response.data;
-        if (typeof window !== 'undefined') {
-            Cookies.set('token', newToken, { expires: 7 });
-        }
-        setToken(newToken);
-        setUser(newUser);
-        return response.data;
+    // 🟢 Pure state & storage setter - DOES NOT call /api/auth/login
+    const login = (userData, token) => {
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('token', token);
+        
+        // 🟢 Sets Cookie so Next.js Middleware / proxy.ts won't redirect back to /login
+        document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
     };
 
     const logout = () => {
-        if (typeof window !== 'undefined') {
-            Cookies.remove('token');
-        }
-        setToken(null);
         setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        window.location.href = '/login';
     };
 
-    const toggleSampleData = () => {
-        const newValue = !sampleDataEnabled;
-        setSampleDataEnabled(newValue);
-        if (typeof window !== 'undefined') {
-            Cookies.set('sampleDataEnabled', String(newValue), { expires: 365 });
-            window.dispatchEvent(new Event('storage'));
-        }
-    };
+    return (
+        <AuthContext.Provider value={{ user, login, logout, loading }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
 
-    const value = {
-        user,
-        token,
-        loading,
-        login,
-        register,
-        loginWithGoogle,
-        logout,
-        isAuthenticated: !!token,
-        sampleDataEnabled,
-        toggleSampleData
-    };
-
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
+export const useAuth = () => useContext(AuthContext);
